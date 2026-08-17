@@ -1,6 +1,7 @@
 "use client";
+
 import { Button } from "@/components/ui/button";
-import { PenBox } from "lucide-react";
+import { PenBox, Sparkles } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import {
   Dialog,
@@ -20,97 +21,132 @@ import { Budgets } from "../../../../../../utils/schema";
 import { eq } from "drizzle-orm";
 import { toast } from "sonner";
 
-function EditBudget({ budgetInfo, refreshData }) {
-  const [emojiIcon, setEmojiIcon] = useState(budgetInfo?.icon);
+export default function EditBudget({ budgetInfo, refreshData }) {
+  const [emojiIcon, setEmojiIcon] = useState(budgetInfo?.icon || "🏷️");
   const [openEmojiPicker, setOpenEmojiPicker] = useState(false);
-
-  const [name, setName] = useState();
-  const [amount, setAmount] = useState();
+  const [name, setName] = useState(budgetInfo?.name || "");
+  const [amount, setAmount] = useState(budgetInfo?.amount || "");
 
   const { user } = useUser();
 
   useEffect(() => {
     if (budgetInfo) {
-      setEmojiIcon(budgetInfo?.icon);
+      setEmojiIcon(budgetInfo?.icon || "🏷️");
       setAmount(budgetInfo.amount);
       setName(budgetInfo.name);
     }
   }, [budgetInfo]);
 
   const onUpdateBudget = async () => {
-    const result = await db
-      .update(Budgets)
-      .set({
-        name: name,
-        amount: amount,
-        icon: emojiIcon,
-      })
-      .where(eq(Budgets.id, budgetInfo.id))
-      .returning();
+    try {
+      const result = await db
+        .update(Budgets)
+        .set({
+          name: name,
+          amount: amount,
+          icon: emojiIcon,
+        })
+        .where(eq(Budgets.id, budgetInfo.id))
+        .returning();
 
-    if (result) {
-      refreshData();
-      toast("Budget Updated!");
+      if (result) {
+        if (refreshData) await refreshData();
+        toast.success("Budget category updated!");
+      }
+    } catch (error) {
+      console.error("Error updating budget:", error);
+      toast.error("Failed to update budget");
     }
   };
+
   return (
     <div>
       <Dialog>
         <DialogTrigger asChild>
-          <Button className="flex space-x-2 gap-2 rounded-full">
-            {" "}
-            <PenBox className="w-4" /> Edit
+          <Button
+            variant="outline"
+            className="flex items-center gap-2 rounded-xl border-border bg-card text-foreground hover:bg-accent text-xs font-semibold shadow-xs"
+          >
+            <PenBox className="w-3.5 h-3.5" />
+            <span>Edit Category</span>
           </Button>
         </DialogTrigger>
-        <DialogContent>
+
+        <DialogContent className="bg-card border-border sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Update Budget</DialogTitle>
-            <DialogDescription>
-              <div className="mt-5">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <DialogTitle className="text-foreground">Update Budget</DialogTitle>
+            </div>
+            <DialogDescription className="text-muted-foreground text-xs">
+              Modify category target limit, label, or assigned emoji icon.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Form Body outside of DialogHeader/DialogDescription to prevent HTML5 p-nesting errors */}
+          <div className="space-y-4 pt-2">
+            <div>
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wider block mb-1.5">
+                Category Icon
+              </label>
+              <div className="relative inline-block">
                 <Button
                   variant="outline"
-                  className="text-lg"
+                  type="button"
+                  className="text-2xl h-14 w-14 rounded-2xl border-border bg-background hover:bg-accent"
                   onClick={() => setOpenEmojiPicker(!openEmojiPicker)}
                 >
                   {emojiIcon}
                 </Button>
-                <div className="absolute z-20">
-                  <EmojiPicker
-                    open={openEmojiPicker}
-                    onEmojiClick={(e) => {
-                      setEmojiIcon(e.emoji);
-                      setOpenEmojiPicker(false);
-                    }}
-                  />
-                </div>
-                <div className="mt-2">
-                  <h2 className="text-black font-medium my-1">Budget Name</h2>
-                  <Input
-                    placeholder="e.g. Home Decor"
-                    defaultValue={budgetInfo?.name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
-                <div className="mt-2">
-                  <h2 className="text-black font-medium my-1">Budget Amount</h2>
-                  <Input
-                    type="number"
-                    defaultValue={budgetInfo?.amount}
-                    placeholder="e.g. Ksh.5000"
-                    onChange={(e) => setAmount(e.target.value)}
-                  />
-                </div>
+                {openEmojiPicker && (
+                  <div className="absolute z-50 mt-2">
+                    <EmojiPicker
+                      onEmojiClick={(e) => {
+                        setEmojiIcon(e.emoji);
+                        setOpenEmojiPicker(false);
+                      }}
+                    />
+                  </div>
+                )}
               </div>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="sm:justify-start">
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wider block mb-1.5">
+                Category Name
+              </label>
+              <Input
+                placeholder="e.g. Home Decor, Groceries"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="bg-background border-border text-foreground rounded-xl"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wider block mb-1.5">
+                Target Budget Limit (KSh)
+              </label>
+              <Input
+                type="number"
+                value={amount}
+                placeholder="e.g. 5000"
+                onChange={(e) => setAmount(e.target.value)}
+                className="bg-background border-border text-foreground rounded-xl"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="pt-3">
             <DialogClose asChild>
               <Button
                 disabled={!(name && amount)}
-                onClick={() => onUpdateBudget()}
-                className="mt-5 w-full rounded-full"
+                onClick={onUpdateBudget}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl shadow-xs"
               >
-                Update Budget
+                Save Changes
               </Button>
             </DialogClose>
           </DialogFooter>
@@ -119,5 +155,3 @@ function EditBudget({ budgetInfo, refreshData }) {
     </div>
   );
 }
-
-export default EditBudget;

@@ -11,7 +11,6 @@ import {
   LogOut,
   X,
   Wallet,
-  Sparkles,
 } from "lucide-react";
 import { UserButton, useUser, useClerk } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
@@ -30,7 +29,7 @@ import {
 
 const menuList = [
   { id: 1, name: "Overview", icon: LayoutGrid, path: "/dashboard" },
-  { id: 2, name: "Transactions", icon: Receipt, path: "/dashboard/expenses2" },
+  { id: 2, name: "Transactions", icon: Receipt, path: "/dashboard/expenses" },
   { id: 3, name: "Budgets", icon: WalletCards, path: "/dashboard/budgets" },
   { id: 4, name: "Incomes", icon: TrendingDown, path: "/dashboard/incomes" },
   { id: 5, name: "Timeframe", icon: Clock, path: "/dashboard/timeframe" },
@@ -47,6 +46,27 @@ export default function Sidebar({ isMobile = false, closeSidebar }) {
     if (isMobile && closeSidebar) {
       closeSidebar();
     }
+  };
+
+  const isItemActive = (item) => {
+    if (item.path === "/dashboard") {
+      return pathname === "/dashboard";
+    }
+    if (item.name === "Budgets") {
+      // Highlight on /dashboard/budgets OR on budget details e.g. /dashboard/expenses/77 or /dashboard/expenses2/77
+      return (
+        pathname.startsWith("/dashboard/budgets") ||
+        /^\/dashboard\/expenses2?\/\d+/.test(pathname)
+      );
+    }
+    if (item.name === "Transactions") {
+      // Highlight on combined expenses logs (/dashboard/expenses or /dashboard/expenses2)
+      return (
+        pathname === "/dashboard/expenses" ||
+        pathname === "/dashboard/expenses2"
+      );
+    }
+    return pathname.startsWith(item.path);
   };
 
   const userName = user?.fullName || "User Account";
@@ -90,10 +110,7 @@ export default function Sidebar({ isMobile = false, closeSidebar }) {
         {/* Main Navigation Links */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {menuList.map((item) => {
-            const isActive =
-              item.path === "/dashboard"
-                ? pathname === "/dashboard"
-                : pathname.startsWith(item.path);
+            const isActive = isItemActive(item);
             const Icon = item.icon;
 
             return (

@@ -4,15 +4,27 @@ import { db } from "../../../../../../utils/dbConfig";
 import { Expenses } from "../../../../../../utils/schema";
 import { eq } from "drizzle-orm";
 import { Trash2, FileDown, ReceiptText } from "lucide-react";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import formatNumber from "../../../../../../utils";
 import { THEME_PDF_PALETTES } from "../../_components/ChartExport";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function ExpenseListTable({ budget, expensesList = [], refreshData }) {
   const budgetName = budget?.name || (Array.isArray(budget) ? "Recent" : "Combined");
+  const [expenseToDelete, setExpenseToDelete] = useState(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // Sort expenses by date (latest to earliest)
   const sortedExpenses = useMemo(() => {
@@ -29,15 +41,23 @@ export default function ExpenseListTable({ budget, expensesList = [], refreshDat
     });
   }, [expensesList]);
 
-  const deleteExpense = async (expense) => {
+  const handleDeleteClick = (expense) => {
+    setExpenseToDelete(expense);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteExpense = async () => {
+    if (!expenseToDelete) return;
     try {
       const result = await db
         .delete(Expenses)
-        .where(eq(Expenses.id, expense.id))
+        .where(eq(Expenses.id, expenseToDelete.id))
         .returning();
 
       if (result) {
-        toast.success("Expense deleted");
+        toast.success("Expense deleted successfully");
+        setShowDeleteDialog(false);
+        setExpenseToDelete(null);
         if (refreshData) await refreshData();
       }
     } catch (error) {
@@ -160,85 +180,123 @@ export default function ExpenseListTable({ budget, expensesList = [], refreshDat
   );
 
   return (
-    <div className="p-6 rounded-2xl bg-card border border-border/80 shadow-xs space-y-4">
-      {/* Table Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-500">
-            <ReceiptText className="w-4 h-4" />
+    <>
+      <div className="p-6 rounded-2xl bg-card border border-border/80 shadow-xs space-y-4">
+        {/* Table Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-500">
+              <ReceiptText className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-foreground">{budgetName} Expenses</h3>
+              <p className="text-xs text-muted-foreground">{sortedExpenses.length} transactions recorded</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-base font-bold text-foreground">{budgetName} Expenses</h3>
-            <p className="text-xs text-muted-foreground">{sortedExpenses.length} transactions recorded</p>
+
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <span className="text-xs text-muted-foreground">Total Spent:</span>
+              <p className="text-sm font-bold text-foreground">KSh {formatNumber(totalSpent)}</p>
+            </div>
+            {sortedExpenses.length > 0 && (
+              <button
+                onClick={exportToPDF}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card hover:bg-accent text-foreground text-xs font-semibold border border-border/80 transition-all duration-200 hover:scale-105 active:scale-95 shadow-xs"
+                title="Export to PDF"
+              >
+                <FileDown className="w-3.5 h-3.5 text-primary" />
+                <span>Export PDF</span>
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
-            <span className="text-xs text-muted-foreground">Total Spent:</span>
-            <p className="text-sm font-bold text-foreground">KSh {formatNumber(totalSpent)}</p>
-          </div>
-          {sortedExpenses.length > 0 && (
-            <button
-              onClick={exportToPDF}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card hover:bg-accent text-foreground text-xs font-semibold border border-border/80 transition-all duration-200 hover:scale-105 active:scale-95 shadow-xs"
-              title="Export to PDF"
-            >
-              <FileDown className="w-3.5 h-3.5 text-primary" />
-              <span>Export PDF</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-border/60 text-xs text-muted-foreground uppercase">
-              <th className="py-3 px-3 font-semibold">Name</th>
-              <th className="py-3 px-3 font-semibold">Amount</th>
-              <th className="py-3 px-3 font-semibold">Date</th>
-              <th className="py-3 px-3 font-semibold text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/40">
-            {sortedExpenses.length > 0 ? (
-              sortedExpenses.map((expense) => (
-                <tr
-                  key={expense.id}
-                  className="hover:bg-muted/40 transition-colors group text-xs sm:text-sm"
-                >
-                  <td className="py-3 px-3 font-medium text-foreground">
-                    {expense.name}
-                  </td>
-                  <td className="py-3 px-3 font-semibold text-rose-500">
-                    KSh {formatNumber(expense.amount)}
-                  </td>
-                  <td className="py-3 px-3 text-muted-foreground text-xs">
-                    {expense.createdAt}
-                  </td>
-                  <td className="py-3 px-3 text-right">
-                    <button
-                      onClick={() => deleteExpense(expense)}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors opacity-80 group-hover:opacity-100"
-                      title="Delete expense"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-border/60 text-xs text-muted-foreground uppercase">
+                <th className="py-3 px-3 font-semibold">Name</th>
+                <th className="py-3 px-3 font-semibold">Amount</th>
+                <th className="py-3 px-3 font-semibold">Date</th>
+                <th className="py-3 px-3 font-semibold text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {sortedExpenses.length > 0 ? (
+                sortedExpenses.map((expense) => (
+                  <tr
+                    key={expense.id}
+                    className="hover:bg-muted/40 transition-colors group text-xs sm:text-sm"
+                  >
+                    <td className="py-3 px-3 font-medium text-foreground">
+                      {expense.name}
+                    </td>
+                    <td className="py-3 px-3 font-semibold text-rose-500">
+                      KSh {formatNumber(expense.amount)}
+                    </td>
+                    <td className="py-3 px-3 text-muted-foreground text-xs">
+                      {expense.createdAt}
+                    </td>
+                    <td className="py-3 px-3 text-right">
+                      <button
+                        onClick={() => handleDeleteClick(expense)}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors opacity-80 group-hover:opacity-100"
+                        title="Delete expense"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="py-8 text-center text-xs text-muted-foreground">
+                    No expenses found for this selection.
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={4} className="py-8 text-center text-xs text-muted-foreground">
-                  No expenses found for this selection.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+
+      {/* Delete Expense Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent className="bg-card border-border sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-rose-500" />
+              <span>Delete Expense Record?</span>
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground text-xs">
+              Are you sure you want to delete{" "}
+              <span className="font-bold text-foreground">
+                "{expenseToDelete?.name}" (KSh {formatNumber(expenseToDelete?.amount || 0)})
+              </span>
+              ? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="pt-2">
+            <AlertDialogCancel
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setExpenseToDelete(null);
+              }}
+              className="rounded-xl border-border"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteExpense}
+              className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold shadow-xs"
+            >
+              Delete Expense
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

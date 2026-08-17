@@ -4,7 +4,6 @@ import React, { useRef } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
-import { FileDown } from "lucide-react";
 import { toast } from "sonner";
 import formatNumber from "../../../../../utils";
 
@@ -151,8 +150,8 @@ export const generateThemedExecutivePDF = async ({
       kpiFinalY + 7
     );
 
-    // 5. Embedded Visual Chart Canvas with STRICT ASPECT RATIO PRESERVATION
-    let chartEndY = kpiFinalY + 14;
+    // 5. Embedded Visual Chart Canvas with PROPER MARGIN & NATURAL ASPECT RATIO
+    let chartEndY = kpiFinalY + 20; // Added generous vertical breathing room
     if (chartRef && chartRef.current) {
       try {
         const canvas = await html2canvas(chartRef.current, {
@@ -171,7 +170,7 @@ export const generateThemedExecutivePDF = async ({
         let finalHeight = maxAvailableWidth * naturalRatio;
 
         // Cap height so it fits proportionally on page 1 without pushing table off
-        const maxAllowedHeight = 100; // mm
+        const maxAllowedHeight = 90; // mm
         if (finalHeight > maxAllowedHeight) {
           finalHeight = maxAllowedHeight;
           finalWidth = finalHeight / naturalRatio;
@@ -186,7 +185,7 @@ export const generateThemedExecutivePDF = async ({
         doc.text("Visual Analytics Overview", 14, chartEndY);
 
         doc.addImage(imgData, "PNG", xOffset, chartEndY + 3, finalWidth, finalHeight);
-        chartEndY += finalHeight + 7;
+        chartEndY += finalHeight + 8;
       } catch (err) {
         console.warn("Could not capture chart screenshot for PDF:", err);
       }
