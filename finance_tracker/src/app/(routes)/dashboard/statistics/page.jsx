@@ -18,7 +18,6 @@ import {
   PieChart as PieIcon,
   Activity,
   Table as TableIcon,
-  ShieldCheck,
 } from "lucide-react";
 import {
   BarChart,
@@ -195,16 +194,12 @@ export default function StatisticsPage() {
 
   const trendAreaData = useMemo(() => {
     if (budgetList.length === 0) return [];
-    return budgetList.map((b, idx) => {
-      const avgIncPerCat = totalIncome > 0 ? Math.round(totalIncome / budgetList.length) : 0;
-      return {
-        name: b.name,
-        IncomeInflow: avgIncPerCat,
-        BudgetLimit: Number(b.amount || 0),
-        SpendOutflow: Number(b.totalSpend || 0),
-      };
-    });
-  }, [budgetList, totalIncome]);
+    return budgetList.map((b) => ({
+      name: b.name,
+      BudgetLimit: Number(b.amount || 0),
+      SpendOutflow: Number(b.totalSpend || 0),
+    }));
+  }, [budgetList]);
 
   const handleExportPDF = async () => {
     setIsExporting(true);
@@ -246,18 +241,20 @@ export default function StatisticsPage() {
       value: `KSh ${formatNumber(totalSpend)}`,
       badge: totalSpend > totalBudget && totalBudget > 0 ? "Over Budget" : "Spend Outflow",
       icon: TrendingDown,
-      color: totalSpend > totalBudget && totalBudget > 0
-        ? "text-rose-500 bg-rose-500/10 border-rose-500/30"
-        : "text-amber-500 bg-amber-500/10 border-amber-500/20",
+      color:
+        totalSpend > totalBudget && totalBudget > 0
+          ? "text-rose-500 bg-rose-500/10 border-rose-500/30"
+          : "text-amber-500 bg-amber-500/10 border-amber-500/20",
     },
     {
       label: "Net Savings",
       value: `KSh ${formatNumber(actualSavings)}`,
       badge: `${savingsRate}% Savings Rate`,
       icon: PiggyBank,
-      color: actualSavings >= 0
-        ? "text-emerald-500 bg-emerald-500/10 border-emerald-500/20"
-        : "text-rose-500 bg-rose-500/10 border-rose-500/20",
+      color:
+        actualSavings >= 0
+          ? "text-emerald-500 bg-emerald-500/10 border-emerald-500/20"
+          : "text-rose-500 bg-rose-500/10 border-rose-500/20",
     },
   ];
 
@@ -270,7 +267,8 @@ export default function StatisticsPage() {
             Executive Analytics & Reports
           </h2>
           <p className="text-sm text-muted-foreground">
-            Financial health diagnostics, category limits, and spending distribution for <span className="font-semibold text-foreground">{activePeriodName}</span>
+            Financial health diagnostics, category limits, and spending distribution for{" "}
+            <span className="font-semibold text-foreground">{activePeriodName}</span>
           </p>
         </div>
 
@@ -303,9 +301,7 @@ export default function StatisticsPage() {
               </div>
 
               <div className="mt-2">
-                <h3 className="text-2xl font-black text-foreground">
-                  {stat.value}
-                </h3>
+                <h3 className="text-2xl font-black text-foreground">{stat.value}</h3>
               </div>
 
               <div className="mt-3 flex items-center justify-between text-xs">
@@ -319,11 +315,11 @@ export default function StatisticsPage() {
         })}
       </div>
 
-      {/* Chart Capture Area for PDF screenshot embedding */}
+      {/* Chart Capture Area for PDF embedding */}
       <div ref={chartCaptureRef} className="space-y-6">
         {/* Tier 2: 2-Column Analytics Deck */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left 60%: Spend vs Budget Bar Chart */}
+          {/* Left 60%: Spend vs Budget Bar Chart with maxBarSize and clean spacing */}
           <div className="lg:col-span-7 xl:col-span-8 p-6 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between">
             <div className="flex items-center justify-between pb-3 border-b border-border/60">
               <div className="flex items-center gap-2">
@@ -338,9 +334,13 @@ export default function StatisticsPage() {
             </div>
 
             {categoryBarData.length > 0 ? (
-              <div className="w-full h-[280px] pt-4">
+              <div className="w-full h-[300px] pt-4">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={categoryBarData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                  <BarChart
+                    data={categoryBarData}
+                    margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                    barGap={6}
+                  >
                     <XAxis
                       dataKey="name"
                       stroke="#888888"
@@ -362,24 +362,26 @@ export default function StatisticsPage() {
                       name="Budget Target"
                       fill="#10B981"
                       radius={[5, 5, 0, 0]}
+                      maxBarSize={32}
                     />
                     <Bar
                       dataKey="Spend"
                       name="Actual Outflow"
                       fill="#3B82F6"
                       radius={[5, 5, 0, 0]}
+                      maxBarSize={32}
                     />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="h-[280px] flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border/60 rounded-xl my-4">
+              <div className="h-[300px] flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border/60 rounded-xl my-4">
                 No budget categories in this timeframe yet.
               </div>
             )}
           </div>
 
-          {/* Right 40%: Spending Distribution Donut Chart */}
+          {/* Right 40%: Spending Distribution Donut Chart with clean layout & legend spacing */}
           <div className="lg:col-span-5 xl:col-span-4 p-6 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between">
             <div className="flex items-center justify-between pb-3 border-b border-border/60">
               <div className="flex items-center gap-2">
@@ -395,7 +397,7 @@ export default function StatisticsPage() {
 
             {categoryDonutData.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center flex-1 pt-2">
-                <div className="sm:col-span-6 relative w-full h-[200px] flex items-center justify-center">
+                <div className="sm:col-span-6 relative w-full h-[220px] flex items-center justify-center">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -418,7 +420,7 @@ export default function StatisticsPage() {
 
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
                     <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-                      Total
+                      TOTAL
                     </span>
                     <span className="text-xs sm:text-sm font-black text-foreground">
                       KSh {formatNumber(totalSpend > 0 ? totalSpend : totalBudget)}
@@ -426,35 +428,39 @@ export default function StatisticsPage() {
                   </div>
                 </div>
 
-                <div className="sm:col-span-6 space-y-2 overflow-y-auto max-h-[220px] pr-1">
-                  {categoryDonutData.slice(0, 6).map((item, index) => (
+                <div className="sm:col-span-6 space-y-2.5 overflow-y-auto max-h-[220px] pr-1">
+                  {categoryDonutData.map((item, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between text-xs py-1 border-b border-border/40 last:border-0"
+                      className="flex items-center justify-between gap-2 text-xs py-1 border-b border-border/40 last:border-0"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: item.color }} />
-                        <span className="font-semibold text-foreground truncate max-w-[90px]">
+                        <span className="font-semibold text-foreground truncate max-w-[80px]">
                           {item.name}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[11px] text-muted-foreground font-bold">{item.perc}%</span>
-                        <span className="text-[11px] font-bold text-foreground">KSh {formatNumber(item.value)}</span>
+                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-bold">
+                          {item.perc}%
+                        </span>
+                        <span className="text-[11px] font-bold text-foreground">
+                          KSh {formatNumber(item.value)}
+                        </span>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="h-[200px] flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border/60 rounded-xl my-4">
+              <div className="h-[220px] flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border/60 rounded-xl my-4">
                 No categories found.
               </div>
             )}
           </div>
         </div>
 
-        {/* Tier 3: Full-Width Comparison Line/Area Chart */}
+        {/* Tier 3: Full-Width Comparison Area Chart with proper X-Axis insets */}
         {trendAreaData.length > 0 && (
           <div className="p-6 rounded-2xl bg-card border border-border/80 shadow-xs space-y-3">
             <div className="flex items-center justify-between pb-3 border-b border-border/60">
@@ -471,7 +477,10 @@ export default function StatisticsPage() {
 
             <div className="w-full h-[260px] pt-2">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendAreaData} margin={{ top: 10, right: 15, left: -15, bottom: 0 }}>
+                <AreaChart
+                  data={trendAreaData}
+                  margin={{ top: 10, right: 30, left: -10, bottom: 0 }}
+                >
                   <defs>
                     <linearGradient id="budgetArea" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
@@ -488,6 +497,7 @@ export default function StatisticsPage() {
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
+                    padding={{ left: 40, right: 40 }}
                   />
                   <YAxis
                     stroke="#888888"
@@ -571,7 +581,11 @@ export default function StatisticsPage() {
                       <td className="py-3.5 px-3 text-right font-bold text-foreground">
                         KSh {formatNumber(spent)}
                       </td>
-                      <td className={`py-3.5 px-3 text-right font-semibold ${remaining >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                      <td
+                        className={`py-3.5 px-3 text-right font-semibold ${
+                          remaining >= 0 ? "text-emerald-500" : "text-rose-500"
+                        }`}
+                      >
                         KSh {formatNumber(remaining)}
                       </td>
                       <td className="py-3.5 px-3">

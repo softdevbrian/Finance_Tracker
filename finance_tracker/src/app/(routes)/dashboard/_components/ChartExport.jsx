@@ -4,7 +4,7 @@ import React, { useRef } from "react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
-import { FileDown, Printer } from "lucide-react";
+import { FileDown } from "lucide-react";
 import { toast } from "sonner";
 import formatNumber from "../../../../../utils";
 
@@ -62,6 +62,7 @@ export const generateThemedExecutivePDF = async ({
     });
 
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     const savingsRate = totalIncome > 0 ? ((actualSavings / totalIncome) * 100).toFixed(1) : "0.0";
     const budgetUtilization = totalBudget > 0 ? ((totalSpend / totalBudget) * 100).toFixed(1) : "0.0";
 
@@ -84,20 +85,20 @@ export const generateThemedExecutivePDF = async ({
     // 2. Report Metadata
     doc.setTextColor(40, 40, 40);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.text("Financial Performance Summary", 14, 30);
+    doc.setFontSize(15);
+    doc.text("Financial Performance Summary", 14, 29);
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(100, 100, 100);
-    doc.text(`Active Period: ${periodName}`, 14, 36);
-    doc.text(`Account: ${userEmail}`, 14, 41);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth - 14, 36, { align: "right" });
-    doc.text(`Theme Palette: ${palette.name}`, pageWidth - 14, 41, { align: "right" });
+    doc.text(`Active Period: ${periodName}`, 14, 35);
+    doc.text(`Account: ${userEmail}`, 14, 39.5);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth - 14, 35, { align: "right" });
+    doc.text(`Theme Palette: ${palette.name}`, pageWidth - 14, 39.5, { align: "right" });
 
     // 3. Executive KPI Table
     doc.autoTable({
-      startY: 46,
+      startY: 44,
       head: [["Total Income Inflow", "Target Budget Limit", "Total Expenditures", "Net Retained Savings"]],
       body: [
         [
@@ -112,33 +113,33 @@ export const generateThemedExecutivePDF = async ({
         fillColor: palette.lightBg,
         textColor: palette.darkHeader,
         fontStyle: "bold",
-        fontSize: 9,
+        fontSize: 8.5,
         halign: "center",
       },
       bodyStyles: {
         fillColor: [250, 250, 250],
         textColor: [20, 20, 20],
         fontStyle: "bold",
-        fontSize: 11,
+        fontSize: 10.5,
         halign: "center",
       },
       styles: {
-        cellPadding: 4,
+        cellPadding: 3.5,
         lineColor: [220, 220, 220],
         lineWidth: 0.2,
       },
     });
 
     // 4. Financial Health Diagnostic Box
-    const kpiFinalY = doc.previousAutoTable.finalY + 6;
+    const kpiFinalY = doc.previousAutoTable.finalY + 4;
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(14, kpiFinalY, pageWidth - 28, 14, 2, 2, "FD");
+    doc.roundedRect(14, kpiFinalY, pageWidth - 28, 11, 2, 2, "FD");
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(30, 41, 59);
-    doc.text("Financial Diagnostic Status:", 18, kpiFinalY + 9);
+    doc.text("Financial Diagnostic Status:", 18, kpiFinalY + 7);
 
     const isHealthy = actualSavings >= 0 && Number(budgetUtilization) <= 100;
     doc.setTextColor(isHealthy ? 16 : 225, isHealthy ? 185 : 29, isHealthy ? 129 : 72);
@@ -146,42 +147,60 @@ export const generateThemedExecutivePDF = async ({
       isHealthy
         ? `OPTIMAL - Retaining ${savingsRate}% of income with ${budgetUtilization}% budget utilization.`
         : `ATTENTION - Spending reached ${budgetUtilization}% of budget allocation.`,
-      68,
-      kpiFinalY + 9
+      64,
+      kpiFinalY + 7
     );
 
-    // 5. Optional Embedded Chart Canvas
-    let chartEndY = kpiFinalY + 18;
+    // 5. Embedded Visual Chart Canvas with STRICT ASPECT RATIO PRESERVATION
+    let chartEndY = kpiFinalY + 14;
     if (chartRef && chartRef.current) {
       try {
         const canvas = await html2canvas(chartRef.current, {
-          scale: 2,
+          scale: 2.5,
           useCORS: true,
           logging: false,
           allowTaint: true,
         });
 
         const imgData = canvas.toDataURL("image/png");
-        const chartWidth = pageWidth - 28;
-        const chartHeight = (canvas.height * chartWidth) / canvas.width;
+        const naturalRatio = canvas.height / canvas.width;
+        const maxAvailableWidth = pageWidth - 28; // 182mm
 
-        if (chartHeight > 0) {
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(11);
-          doc.setTextColor(30, 41, 59);
-          doc.text("Visual Analytics Overview", 14, chartEndY);
+        // Natural width & height without distortion
+        let finalWidth = maxAvailableWidth;
+        let finalHeight = maxAvailableWidth * naturalRatio;
 
-          doc.addImage(imgData, "PNG", 14, chartEndY + 3, chartWidth, Math.min(chartHeight, 75));
-          chartEndY += Math.min(chartHeight, 75) + 10;
+        // Cap height so it fits proportionally on page 1 without pushing table off
+        const maxAllowedHeight = 100; // mm
+        if (finalHeight > maxAllowedHeight) {
+          finalHeight = maxAllowedHeight;
+          finalWidth = finalHeight / naturalRatio;
         }
+
+        // Center horizontally
+        const xOffset = 14 + (maxAvailableWidth - finalWidth) / 2;
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10.5);
+        doc.setTextColor(30, 41, 59);
+        doc.text("Visual Analytics Overview", 14, chartEndY);
+
+        doc.addImage(imgData, "PNG", xOffset, chartEndY + 3, finalWidth, finalHeight);
+        chartEndY += finalHeight + 7;
       } catch (err) {
         console.warn("Could not capture chart screenshot for PDF:", err);
       }
     }
 
-    // 6. Category Breakdown Table
+    // 6. Check if category table needs a new page to prevent awkward splitting
+    if (chartEndY + 35 > pageHeight) {
+      doc.addPage();
+      chartEndY = 15;
+    }
+
+    // 7. Category Breakdown Table
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
+    doc.setFontSize(10.5);
     doc.setTextColor(30, 41, 59);
     doc.text("Budget Category Breakdown", 14, chartEndY + 2);
 
@@ -211,11 +230,11 @@ export const generateThemedExecutivePDF = async ({
         fillColor: palette.darkHeader,
         textColor: 255,
         fontStyle: "bold",
-        fontSize: 9,
+        fontSize: 8.5,
       },
       bodyStyles: {
-        fontSize: 9,
-        cellPadding: 3.5,
+        fontSize: 8.5,
+        cellPadding: 3,
       },
       columnStyles: {
         0: { fontStyle: "bold" },
@@ -238,7 +257,7 @@ export const generateThemedExecutivePDF = async ({
       },
     });
 
-    // 7. PDF Footer on all pages
+    // 8. PDF Footers on all pages
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
@@ -247,7 +266,7 @@ export const generateThemedExecutivePDF = async ({
       doc.text(
         `Finance Tracker Executive Report  •  Confidential  •  Page ${i} of ${pageCount}`,
         pageWidth / 2,
-        doc.internal.pageSize.getHeight() - 8,
+        doc.internal.pageSize.getHeight() - 7,
         { align: "center" }
       );
     }
@@ -260,7 +279,7 @@ export const generateThemedExecutivePDF = async ({
   }
 };
 
-export const ChartWrapper = ({ children, title, exportable = true }) => {
+export const ChartWrapper = ({ children }) => {
   const chartRef = useRef(null);
 
   return (
