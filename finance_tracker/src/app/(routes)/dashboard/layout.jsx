@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = 'force-dynamic';
 import React, { useEffect, useContext } from "react";
 import SideNav from "./_components/SideNav";
 import DashboardHeader from "./_components/DashboardHeader";
