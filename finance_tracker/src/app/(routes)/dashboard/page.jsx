@@ -1,72 +1,72 @@
 "use client";
 
 import React, { useState, useEffect, useContext } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@clerk/nextjs";
-import CardInfo from "./_components/CardInfo";
 import { db } from "../../../../utils/dbConfig";
 import { desc, eq, getTableColumns, sql, and, inArray } from "drizzle-orm";
-import { Budgets, Expenses, Incomes, Periods } from "../../../../utils/schema";
-import BudgetItem from "./budgets/_components/BudgetItem";
-import ExpenseListTable from "./expenses/_components/ExpenseListTable";
-import { Toaster } from "@/components/ui/sonner";
-import BarChartComponent from "./_components/graphs/BarChartComponent";
-import LineChartComponent from "./_components/graphs/LineChartComponent";
-import PieChartComponentB from "./_components/graphs/PieChartComponentB";
-import PieChartComponent from "./_components/graphs/PieChartComponent";
-import { ChartWrapper } from "./_components/ChartExport";
-import { toast } from "sonner";
+import { Budgets, Expenses, Incomes } from "../../../../utils/schema";
+import { toast, Toaster } from "sonner";
 import { useRouter } from "next/navigation";
 import { TimeFrameContext } from "@/components/ui/TimeFrameProvider";
-import { Layers } from "lucide-react";
+
+import AdvisorBanner from "./_components/widgets/AdvisorBanner";
+import MetricCardsRow from "./_components/widgets/MetricCardsRow";
+import IncomeExpenseAreaChart from "./_components/widgets/IncomeExpenseAreaChart";
+import CategoryDonutChart from "./_components/widgets/CategoryDonutChart";
+import BudgetProgressWidget from "./_components/widgets/BudgetProgressWidget";
+import CashFlowBarChart from "./_components/widgets/CashFlowBarChart";
+import RecentTransactionsWidget from "./_components/widgets/RecentTransactionsWidget";
 
 export default function Dashboard() {
   const { user } = useUser();
-  const [userEmail, setUserEmail] = useState(null);
   const { selectedTimeFrames } = useContext(TimeFrameContext);
   const [budgetList, setBudgetList] = useState([]);
   const [incomeList, setIncomeList] = useState([]);
   const [expensesList, setExpensesList] = useState([]);
-  const [currentChartIndex, setCurrentChartIndex] = useState(0);
-  const [greeting, setGreeting] = useState(getGreeting());
+  const [totalIncome, setTotalIncome] = useState(0);
+  const [totalSpend, setTotalSpend] = useState(0);
+  const [totalBudget, setTotalBudget] = useState(0);
   const router = useRouter();
-
-  const charts = [
-    { component: BarChartComponent, name: "Spend vs Budget Bar Chart", exportName: "Bar_Chart" },
-    { component: LineChartComponent, name: "Income vs Spend Trend", exportName: "Line_Chart" },
-    { component: PieChartComponent, name: "Spend Distribution", exportName: "Spend_Pie_Chart" },
-    { component: PieChartComponentB, name: "Budget Allocation", exportName: "Budget_Pie_Chart" },
-  ];
 
   useEffect(() => {
     if (user && selectedTimeFrames && selectedTimeFrames.length > 0) {
-      setUserEmail(user.primaryEmailAddress?.emailAddress);
-      getBudgetList();
+      getDashboardData();
     } else if (user && (!selectedTimeFrames || selectedTimeFrames.length === 0)) {
       router.replace("/dashboard/timeframe");
       toast("Choose A TimeFrame First", { duration: 6000 });
     }
-
-    const interval = setInterval(() => {
-      setGreeting(getGreeting());
-    }, 60000);
-
-    return () => clearInterval(interval);
   }, [user, selectedTimeFrames]);
 
-  useEffect(() => {
-    const chartRotationInterval = setInterval(() => {
-      setCurrentChartIndex((prevIndex) => (prevIndex + 1) % charts.length);
-    }, 20000);
-
-    return () => clearInterval(chartRotationInterval);
-  }, []);
-
-  const getBudgetList = async () => {
+  const getDashboardData = async () => {
     try {
       if (!user?.primaryEmailAddress?.emailAddress) return;
+      const userEmail = user.primaryEmailAddress.emailAddress;
 
-      const result = await db
+      // 1. Fetch Incomes strictly for the selected timeframe
+      const incomeRes = await db
+        .select({
+          ...getTableColumns(Incomes),
+          periodId: Incomes.periodId,
+          totalAmount: sql`SUM(CAST(${Incomes.amount} AS NUMERIC))`.mapWith(Number),
+        })
+        .from(Incomes)
+        .where(
+          and(
+            eq(Incomes.createdBy, userEmail),
+            inArray(Incomes.periodId, selectedTimeFrames)
+          )
+        )
+        .groupBy(Incomes.id, Incomes.periodId);
+
+      setIncomeList(incomeRes);
+      const incTotal = incomeRes.reduce(
+        (sum, item) => sum + (parseFloat(item.amount) || 0),
+        0
+      );
+      setTotalIncome(incTotal);
+
+      // 2. Fetch Budgets with totalSpend strictly for the selected timeframe
+      const budgetRes = await db
         .select({
           ...getTableColumns(Budgets),
           periodId: Budgets.periodId,
@@ -77,193 +77,90 @@ export default function Dashboard() {
         .leftJoin(Expenses, eq(Budgets.id, Expenses.budgetId))
         .where(
           and(
-            eq(Budgets.createdBy, user?.primaryEmailAddress?.emailAddress),
+            eq(Budgets.createdBy, userEmail),
             inArray(Budgets.periodId, selectedTimeFrames)
           )
         )
         .groupBy(Budgets.id, Budgets.periodId)
         .orderBy(desc(Budgets.id));
 
-      setBudgetList(result);
-      getAllExpenses();
-      getIncomeList();
-    } catch (error) {
-      console.error("Error fetching budget list:", error);
-    }
-  };
+      setBudgetList(budgetRes);
 
-  const getIncomeList = async () => {
-    try {
-      if (!user?.primaryEmailAddress?.emailAddress) return;
+      const bTotal = budgetRes.reduce(
+        (sum, item) => sum + (parseFloat(item.amount) || 0),
+        0
+      );
+      const spTotal = budgetRes.reduce(
+        (sum, item) => sum + (parseFloat(item.totalSpend) || 0),
+        0
+      );
+      setTotalBudget(bTotal);
+      setTotalSpend(spTotal);
 
-      const result = await db
-        .select({
-          ...getTableColumns(Incomes),
-          periodId: Incomes.periodId,
-          totalAmount: sql`SUM(CAST(${Incomes.amount} AS NUMERIC))`.mapWith(Number),
-        })
-        .from(Incomes)
-        .where(
-          and(
-            eq(Incomes.createdBy, user.primaryEmailAddress.emailAddress),
-            inArray(Incomes.periodId, selectedTimeFrames)
-          )
-        )
-        .groupBy(Incomes.id, Incomes.periodId);
-
-      setIncomeList(result);
-    } catch (error) {
-      console.error("Error fetching income list:", error);
-    }
-  };
-
-  const getAllExpenses = async () => {
-    try {
-      if (!user?.primaryEmailAddress?.emailAddress) return;
-
-      const result = await db
+      // 3. Fetch Recent Expenses strictly for the selected timeframe
+      const expRes = await db
         .select({
           id: Expenses.id,
           name: Expenses.name,
           amount: Expenses.amount,
           createdAt: Expenses.createdAt,
-          periodId: Budgets.periodId,
+          budgetId: Expenses.budgetId,
         })
         .from(Budgets)
         .rightJoin(Expenses, eq(Budgets.id, Expenses.budgetId))
         .where(
           and(
-            eq(Budgets.createdBy, user?.primaryEmailAddress?.emailAddress),
+            eq(Budgets.createdBy, userEmail),
             inArray(Budgets.periodId, selectedTimeFrames)
           )
         )
-        .orderBy(desc(Expenses.id));
+        .orderBy(desc(Expenses.id))
+        .limit(10);
 
-      setExpensesList(result);
+      setExpensesList(expRes);
     } catch (error) {
-      console.error("Error fetching expenses:", error);
+      console.error("Error fetching dashboard data:", error);
     }
   };
 
-  const CurrentChartComponent = charts[currentChartIndex].component;
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 max-w-[1550px] mx-auto pb-6">
       <Toaster />
 
-      {/* Greeting Header */}
-      <div className="space-y-1">
-        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
-          <span>{greeting.greeting}, {user?.firstName || user?.fullName || "there"}</span>
-          <span>{greeting.emoji}</span>
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Monitor your cash flow, track active budget categories, and optimize your monthly savings.
-        </p>
-      </div>
-
-      {/* KPI Cards & Advisor Banner */}
-      <CardInfo
-        budgetList={budgetList}
-        incomeList={incomeList}
-        currentUserEmail={userEmail}
+      {/* Top Banner: Dynamic Scenario Financial Advisor */}
+      <AdvisorBanner
+        totalBudget={totalBudget}
+        totalSpend={totalSpend}
+        totalIncome={totalIncome}
       />
 
-      {/* Analytics & Breakdown Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Rotating Charts Deck + Expense Table */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="p-6 rounded-2xl bg-card border border-border/80 shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                  <Layers className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-semibold text-foreground">
-                    {charts[currentChartIndex].name}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">Auto-cycling visual analytics</p>
-                </div>
-              </div>
+      {/* Tier 1: 4 Real KPI Metric Cards */}
+      <MetricCardsRow
+        totalBudget={totalBudget}
+        totalIncome={totalIncome}
+        totalSpend={totalSpend}
+      />
 
-              {/* Chart Selector Dots */}
-              <div className="flex items-center gap-1.5 p-1 rounded-lg bg-muted/60">
-                {charts.map((chart, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentChartIndex(index)}
-                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                      currentChartIndex === index
-                        ? "bg-card text-foreground shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {index + 1}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <ChartWrapper
-              title={charts[currentChartIndex].exportName}
-              exportable={true}
-            >
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={currentChartIndex}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <CurrentChartComponent data={budgetList} />
-                </motion.div>
-              </AnimatePresence>
-            </ChartWrapper>
-          </div>
-
-          <ExpenseListTable
-            budget={budgetList}
-            expensesList={expensesList}
-            refreshData={() => getBudgetList()}
-          />
+      {/* Tier 2: Visual Analytics (Spend vs Budget + Category Spending Donut) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-7 xl:col-span-8">
+          <IncomeExpenseAreaChart budgetList={budgetList} />
         </div>
-
-        {/* Right 1 Col: Latest Budgets List */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-foreground">Active Budgets</h3>
-            <span className="text-xs font-medium text-muted-foreground">
-              {budgetList?.length || 0} categories
-            </span>
-          </div>
-
-          <div className="space-y-3">
-            {budgetList?.length > 0 ? (
-              budgetList.map((budget, index) => (
-                <BudgetItem budget={budget} key={index} />
-              ))
-            ) : (
-              <div className="space-y-3">
-                {[1, 2, 3].map((item, index) => (
-                  <div
-                    key={index}
-                    className="h-28 w-full bg-muted/60 rounded-2xl border border-border/40 animate-pulse"
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+        <div className="lg:col-span-5 xl:col-span-4">
+          <CategoryDonutChart budgetList={budgetList} />
         </div>
+      </div>
+
+      {/* Tier 3: Operational Cockpit (Budgets Progress + Cash Flow + Recent Transactions) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <BudgetProgressWidget budgetList={budgetList} />
+        <CashFlowBarChart
+          totalIncome={totalIncome}
+          totalSpend={totalSpend}
+          totalBudget={totalBudget}
+        />
+        <RecentTransactionsWidget expensesList={expensesList} />
       </div>
     </div>
   );
-}
-
-function getGreeting() {
-  const hours = new Date().getHours();
-  if (hours < 12) return { greeting: "Good morning", emoji: "☀️" };
-  if (hours < 18) return { greeting: "Good afternoon", emoji: "🌤️" };
-  return { greeting: "Good evening", emoji: "🌙" };
 }
