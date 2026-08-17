@@ -1,132 +1,103 @@
-import React, { useRef } from 'react';
-import { saveAs } from 'file-saver';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-import { FileDown } from 'lucide-react';
+"use client";
+
+import React, { useRef } from "react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import { FileDown } from "lucide-react";
+import { toast } from "sonner";
 
 export const useChartExport = () => {
-  const exportChartToPDF = async (chartRef, chartName = 'Chart') => {
+  const exportChartToPDF = async (chartRef, chartName = "Chart") => {
     if (!chartRef.current) {
-      console.error('Chart reference is not available');
+      console.error("Chart reference is not available");
+      toast.error("Chart reference unavailable");
       return;
     }
 
     try {
-      // Temporarily adjust container for full capture
       const originalOverflow = chartRef.current.style.overflow;
       const originalWidth = chartRef.current.style.width;
-      
-      // Ensure full chart is visible
-      chartRef.current.style.overflow = 'visible';
-      chartRef.current.style.width = 'auto';
 
-      // Capture the entire chart content
+      chartRef.current.style.overflow = "visible";
+      chartRef.current.style.width = "auto";
+
       const canvas = await html2canvas(chartRef.current, {
-        scale: 3, // Higher scale for better quality
+        scale: 3,
         useCORS: true,
         logging: false,
         allowTaint: true,
         scrollX: 0,
-        scrollY: -window.scrollY
+        scrollY: -window.scrollY,
       });
 
-      // Restore original styles
       chartRef.current.style.overflow = originalOverflow;
       chartRef.current.style.width = originalWidth;
 
-      // Create PDF with dynamic sizing
       const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'px',
-        format: 'a4'
+        orientation: "landscape",
+        unit: "px",
+        format: "a4",
       });
 
-      // Get PDF page dimensions
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
 
-      // Calculate scaling to fit chart
       const widthRatio = pageWidth / canvas.width;
       const heightRatio = pageHeight / canvas.height;
-      const scale = Math.min(widthRatio, heightRatio) * 0.9; // 90% of page size
+      const scale = Math.min(widthRatio, heightRatio) * 0.9;
 
       const scaledWidth = canvas.width * scale;
       const scaledHeight = canvas.height * scale;
 
-      // Center the image
       const xPadding = (pageWidth - scaledWidth) / 2;
       const yPadding = (pageHeight - scaledHeight) / 2;
 
-      // Add image to PDF
       pdf.addImage(
-        canvas.toDataURL('image/png'), 
-        'PNG', 
-        xPadding, 
-        yPadding, 
-        scaledWidth, 
+        canvas.toDataURL("image/png"),
+        "PNG",
+        xPadding,
+        yPadding,
+        scaledWidth,
         scaledHeight
       );
 
-      // Save PDF
-      pdf.save(`${chartName}_Export_${new Date().toISOString().split('T')[0]}.pdf`);
-
+      pdf.save(`${chartName}_Export_${new Date().toISOString().split("T")[0]}.pdf`);
+      toast.success("Chart exported to PDF!");
     } catch (error) {
-      console.error('PDF export failed:', error);
+      console.error("PDF export failed:", error);
+      toast.error("Failed to export chart PDF");
     }
   };
 
   return { exportChartToPDF };
 };
 
-export const ChartExportButton = ({ 
-  chartRef, 
-  chartName, 
-  className = '' 
-}) => {
+export const ChartExportButton = ({ chartRef, chartName, className = "" }) => {
   const { exportChartToPDF } = useChartExport();
 
   return (
     <button
       onClick={() => exportChartToPDF(chartRef, chartName)}
-      className={`
-        flex items-center gap-2 
-        bg-primary text-primary-foreground 
-        px-3 py-1.5 md:px-4 md:py-2 rounded-lg 
-        hover:bg-primary/90 
-        transition-all duration-300 
-        transform hover:scale-105 active:scale-95
-        text-xs md:text-sm
-        focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2
-        ${className}
-      `}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card hover:bg-accent text-foreground text-xs font-semibold border border-border/80 transition-all duration-200 hover:scale-105 active:scale-95 shadow-xs ${className}`}
+      title="Export chart to PDF"
     >
-      <FileDown className="w-4 h-4 md:w-5 md:h-5" />
-      <span className="hidden md:inline">Export PDF</span>
-      <span className="md:hidden">PDF</span>
+      <FileDown className="w-3.5 h-3.5 text-primary" />
+      <span>Export PDF</span>
     </button>
   );
 };
 
-export const ChartWrapper = ({ 
-  children, 
-  title, 
-  exportable = true 
-}) => {
+export const ChartWrapper = ({ children, title, exportable = true }) => {
   const chartRef = useRef(null);
-  const { exportChartToPDF } = useChartExport();
 
   return (
-    <div className="relative bg-card text-card-foreground rounded-lg border border-border shadow-sm">
+    <div className="relative bg-card text-card-foreground rounded-2xl border border-border/80 shadow-xs overflow-hidden">
       {exportable && (
-        <div className="absolute top-2 right-2 z-10">
-          <ChartExportButton 
-            chartRef={chartRef} 
-            chartName={title}
-            className="shadow-sm"
-          />
+        <div className="absolute top-3 right-3 z-10">
+          <ChartExportButton chartRef={chartRef} chartName={title} />
         </div>
       )}
-      <div ref={chartRef} className="p-4">
+      <div ref={chartRef} className="p-4 sm:p-6">
         {children}
       </div>
     </div>

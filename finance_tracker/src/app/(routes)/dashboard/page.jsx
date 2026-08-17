@@ -1,11 +1,12 @@
 "use client";
+
 import React, { useState, useEffect, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { UserButton, useUser } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
 import CardInfo from "./_components/CardInfo";
 import { db } from "../../../../utils/dbConfig";
 import { desc, eq, getTableColumns, sql, and, inArray } from "drizzle-orm";
-import { Budgets, Expenses, Incomes, PeriodSelected, Periods } from "../../../../utils/schema";
+import { Budgets, Expenses, Incomes, Periods } from "../../../../utils/schema";
 import BudgetItem from "./budgets/_components/BudgetItem";
 import ExpenseListTable from "./expenses/_components/ExpenseListTable";
 import { Toaster } from "@/components/ui/sonner";
@@ -16,39 +17,25 @@ import PieChartComponent from "./_components/graphs/PieChartComponent";
 import { ChartWrapper } from "./_components/ChartExport";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { ChartExportButton } from "./_components/ChartExport";
 import { TimeFrameContext } from "@/components/ui/TimeFrameProvider";
+import { Layers } from "lucide-react";
 
-function Dashboard() {
+export default function Dashboard() {
   const { user } = useUser();
   const [userEmail, setUserEmail] = useState(null);
   const { selectedTimeFrames } = useContext(TimeFrameContext);
   const [budgetList, setBudgetList] = useState([]);
   const [incomeList, setIncomeList] = useState([]);
   const [expensesList, setExpensesList] = useState([]);
-  const [periodNames, setPeriodNames] = useState({});
   const [currentChartIndex, setCurrentChartIndex] = useState(0);
   const [greeting, setGreeting] = useState(getGreeting());
   const router = useRouter();
 
-  // Array of chart components to rotate through with names
   const charts = [
-    { 
-      component: BarChartComponent, 
-      name: "Bar Chart" 
-    },
-    { 
-      component: LineChartComponent, 
-      name: "Line Chart" 
-    },
-    { 
-      component: PieChartComponent, 
-      name: "Pie Chart Spend Distribution" 
-    },
-    { 
-      component: PieChartComponentB, 
-      name: "Pie Chart Budget Allocation" 
-    }
+    { component: BarChartComponent, name: "Spend vs Budget Bar Chart", exportName: "Bar_Chart" },
+    { component: LineChartComponent, name: "Income vs Spend Trend", exportName: "Line_Chart" },
+    { component: PieChartComponent, name: "Spend Distribution", exportName: "Spend_Pie_Chart" },
+    { component: PieChartComponentB, name: "Budget Allocation", exportName: "Budget_Pie_Chart" },
   ];
 
   useEffect(() => {
@@ -56,34 +43,25 @@ function Dashboard() {
       setUserEmail(user.primaryEmailAddress?.emailAddress);
       getBudgetList();
     } else if (user && (!selectedTimeFrames || selectedTimeFrames.length === 0)) {
-      // Route to timeframe setup if no period is selected
       router.replace("/dashboard/timeframe");
-      toast('Choose A TimeFrame First', {
-        duration: 10000,
-      });
+      toast("Choose A TimeFrame First", { duration: 6000 });
     }
 
-    // Dynamic greeting updater
     const interval = setInterval(() => {
       setGreeting(getGreeting());
-    }, 60000); // Update every minute
+    }, 60000);
 
-    return () => clearInterval(interval); // Cleanup interval on unmount
+    return () => clearInterval(interval);
   }, [user, selectedTimeFrames]);
 
-  // Chart rotation effect
   useEffect(() => {
     const chartRotationInterval = setInterval(() => {
-      setCurrentChartIndex((prevIndex) => 
-        (prevIndex + 1) % charts.length
-      );
-    }, 20000); // 20 seconds
+      setCurrentChartIndex((prevIndex) => (prevIndex + 1) % charts.length);
+    }, 20000);
 
-    // Clean up interval on component unmount
     return () => clearInterval(chartRotationInterval);
   }, []);
 
-  // Rest of your existing methods (getBudgetList, getIncomeList, getAllExpenses)
   const getBudgetList = async () => {
     try {
       if (!user?.primaryEmailAddress?.emailAddress) return;
@@ -101,7 +79,8 @@ function Dashboard() {
           and(
             eq(Budgets.createdBy, user?.primaryEmailAddress?.emailAddress),
             inArray(Budgets.periodId, selectedTimeFrames)
-          ))
+          )
+        )
         .groupBy(Budgets.id, Budgets.periodId)
         .orderBy(desc(Budgets.id));
 
@@ -156,7 +135,8 @@ function Dashboard() {
           and(
             eq(Budgets.createdBy, user?.primaryEmailAddress?.emailAddress),
             inArray(Budgets.periodId, selectedTimeFrames)
-          ))
+          )
+        )
         .orderBy(desc(Expenses.id));
 
       setExpensesList(result);
@@ -165,94 +145,83 @@ function Dashboard() {
     }
   };
 
-  // Animation variants for chart transitions
-  const chartVariants = {
-    initial: { 
-      opacity: 0, 
-      scale: 0.9,
-      x: 50 // Slide in from right
-    },
-    animate: { 
-      opacity: 1, 
-      scale: 1,
-      x: 0,
-      transition: { 
-        duration: 0.5,
-        type: "tween" 
-      }
-    },
-    exit: { 
-      opacity: 0, 
-      scale: 0.9,
-      x: -50, // Slide out to left
-      transition: { 
-        duration: 0.5,
-        type: "tween" 
-      }
-    }
-  };
-
-  // Get current chart component
   const CurrentChartComponent = charts[currentChartIndex].component;
 
   return (
-    <div className="p-8 bg-">
+    <div className="space-y-6">
       <Toaster />
-      <h2 className="font-bold text-4xl">
-      {greeting.greeting}, {user?.fullName} {greeting.emoji}
-      </h2>
-      <p className="text-gray-500">
-        Stay ON TOP of your finances 😎. Let's TRACK & MANAGE your expenses effectively!!!🪙💰
-      </p>
 
-      <CardInfo 
-        budgetList={budgetList} 
-        incomeList={incomeList} 
-        currentUserEmail={userEmail} 
+      {/* Greeting Header */}
+      <div className="space-y-1">
+        <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
+          <span>{greeting.greeting}, {user?.firstName || user?.fullName || "there"}</span>
+          <span>{greeting.emoji}</span>
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Monitor your cash flow, track active budget categories, and optimize your monthly savings.
+        </p>
+      </div>
+
+      {/* KPI Cards & Advisor Banner */}
+      <CardInfo
+        budgetList={budgetList}
+        incomeList={incomeList}
+        currentUserEmail={userEmail}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 mt-6 gap-5">
-        <div className="lg:col-span-2 relative">
-          {/* Animated Chart Container */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentChartIndex}
-              variants={chartVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              className="relative"
-            >
-              {/* Chart Header */}
-              <div className="mb-4 flex justify-between items-center">
-                <h3 className="text-xl font-semibold text-gray-700">
-                  {charts[currentChartIndex].name}
-                </h3>
-                <div className="flex space-x-2">
-                  {charts.map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setCurrentChartIndex(index)}
-                      className={`h-2 w-2 rounded-full ${
-                        currentChartIndex === index 
-                          ? 'bg-blue-500' 
-                          : 'bg-gray-300'
-                      }`}
-                    />
-                  ))}
+      {/* Analytics & Breakdown Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left 2 Cols: Rotating Charts Deck + Expense Table */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="p-6 rounded-2xl bg-card border border-border/80 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-foreground">
+                    {charts[currentChartIndex].name}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">Auto-cycling visual analytics</p>
                 </div>
               </div>
-              
-              {/* Wrap the current chart with ChartWrapper */}
-              <ChartWrapper 
-                title={charts[currentChartIndex].exportName}
-                exportable={true}
-              >
-                <CurrentChartComponent data={budgetList}/>
-              </ChartWrapper>
 
-            </motion.div>
-          </AnimatePresence>
+              {/* Chart Selector Dots */}
+              <div className="flex items-center gap-1.5 p-1 rounded-lg bg-muted/60">
+                {charts.map((chart, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentChartIndex(index)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                      currentChartIndex === index
+                        ? "bg-card text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <ChartWrapper
+              title={charts[currentChartIndex].exportName}
+              exportable={true}
+            >
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentChartIndex}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <CurrentChartComponent data={budgetList} />
+                </motion.div>
+              </AnimatePresence>
+            </ChartWrapper>
+          </div>
 
           <ExpenseListTable
             budget={budgetList}
@@ -260,31 +229,41 @@ function Dashboard() {
             refreshData={() => getBudgetList()}
           />
         </div>
-        <div className="grid gap-5">
-          <h2 className="font-bold text-lg">Latest Budgets</h2>
-          {budgetList?.length > 0
-            ? budgetList.map((budget, index) => (
+
+        {/* Right 1 Col: Latest Budgets List */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-bold text-foreground">Active Budgets</h3>
+            <span className="text-xs font-medium text-muted-foreground">
+              {budgetList?.length || 0} categories
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {budgetList?.length > 0 ? (
+              budgetList.map((budget, index) => (
                 <BudgetItem budget={budget} key={index} />
               ))
-            : [1, 2, 3, 4].map((item, index) => (
-                <div
-                  key={index}
-                  className="h-[180xp] w-full
-                 bg-slate-200 rounded-lg animate-pulse"
-                ></div>
-              ))}
+            ) : (
+              <div className="space-y-3">
+                {[1, 2, 3].map((item, index) => (
+                  <div
+                    key={index}
+                    className="h-28 w-full bg-muted/60 rounded-2xl border border-border/40 animate-pulse"
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-export default Dashboard;
-
-// Utility function to get the greeting
 function getGreeting() {
   const hours = new Date().getHours();
-  if (hours < 12) return { greeting: "Good Morning", emoji: "☀️" };
-  if (hours < 18) return { greeting: "Good Afternoon", emoji: "🌤️" };
-  return { greeting: "Good Evening", emoji: "🌙" };
+  if (hours < 12) return { greeting: "Good morning", emoji: "☀️" };
+  if (hours < 18) return { greeting: "Good afternoon", emoji: "🌤️" };
+  return { greeting: "Good evening", emoji: "🌙" };
 }

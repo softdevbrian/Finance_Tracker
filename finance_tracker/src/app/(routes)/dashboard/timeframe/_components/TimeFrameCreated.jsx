@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext } from "react";
 import { format } from "date-fns";
-import { Calendar, Type } from "lucide-react";
-import { Card, CardContent } from '@/components/ui/card';
+import { Calendar, CheckCircle2, Clock, Layers } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogTrigger,
@@ -23,12 +23,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import DeleteTimeFrame from './DeleteTimeFrame';
-import EditTimeFrame from './EditTimeFrame';
-import { TimeFrameContext } from '@/components/ui/TimeFrameProvider';
+import DeleteTimeFrame from "./DeleteTimeFrame";
+import EditTimeFrame from "./EditTimeFrame";
+import { TimeFrameContext } from "@/components/ui/TimeFrameProvider";
 
-const TimeFramesCreated = ({ periods, refreshData }) => {
-  const { selectedTimeFrames = [], setSelectedTimeFrames: updateSelectedTimeFrames  } = useContext(TimeFrameContext);
+export default function TimeFramesCreated({ periods = [], refreshData }) {
+  const { selectedTimeFrames = [], setSelectedTimeFrames: updateSelectedTimeFrames } =
+    useContext(TimeFrameContext);
   const [selectedPeriodId, setSelectedPeriodId] = useState(null);
   const [showAlert, setShowAlert] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -36,9 +37,8 @@ const TimeFramesCreated = ({ periods, refreshData }) => {
   const formatDateWithDay = (dateString) => {
     try {
       const date = new Date(dateString);
-      return format(date, "EEE do MMM yyyy");
+      return format(date, "EEE, MMM d, yyyy");
     } catch (error) {
-      console.error("Error formatting date:", error.message, dateString);
       return "Invalid Date";
     }
   };
@@ -54,22 +54,6 @@ const TimeFramesCreated = ({ periods, refreshData }) => {
     setShowAlert(false);
   };
 
-  const formatCreatedAt = (dateString) => {
-    try {
-      if (!dateString) throw new Error('Invalid date string');
-      const date = new Date(dateString);
-  
-      if (isNaN(date.getTime())) {
-        throw new Error('Invalid Date');
-      }
-  
-      return format(date, 'EEE do MMM yyyy HH:mm');
-    } catch (error) {
-      console.error('Error formatting createdAt:', error.message);
-      return 'Invalid Date';
-    }
-  };
-
   const handleChoose = () => {
     setShowAlert(true);
   };
@@ -80,129 +64,150 @@ const TimeFramesCreated = ({ periods, refreshData }) => {
       await updateSelectedTimeFrames(selectedPeriodId);
       handleDialogClose();
     } catch (error) {
-      console.error('Error updating timeframe selection:', error);
+      console.error("Error updating timeframe selection:", error);
     } finally {
       setIsUpdating(false);
     }
   };
-  
+
   return (
     <>
-      {periods.map((period) => (
-        <Card 
-          key={period.id} 
-          className={`w-full transition-all duration-300 ${
-            (selectedTimeFrames || []).includes(period.id) 
-              ? 'ring-2 ring-purple-500 ring-opacity-50 shadow-lg animate-pulse'
-              : 'hover:shadow-lg'
-          }`}
-        >
-          <CardContent className="p-6">
-            <div className="flex flex-col space-y-4">
-              {/* Header with name and type */}
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold flex items-center space-x-2">
-                  <span>{period.name}</span>
-                  {(selectedTimeFrames || []).includes(period.id) && (
-                    <span className="text-sm text-purple-600 font-medium">(Selected)</span>
-                  )}
-                </h3>
-                <div className="flex items-center space-x-2">
-                  <Type className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm text-gray-600 capitalize">{period.type}</span>
+      {periods.map((period) => {
+        const isSelected = (selectedTimeFrames || []).includes(period.id);
+
+        return (
+          <Card
+            key={period.id}
+            className={`w-full rounded-2xl transition-all duration-300 bg-card border ${
+              isSelected
+                ? "border-primary shadow-md bg-primary/5"
+                : "border-border/80 hover:border-border hover:shadow-md"
+            }`}
+          >
+            <CardContent className="p-5 flex flex-col justify-between h-full space-y-4">
+              {/* Header with name and badge */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-foreground truncate">
+                      {period.name}
+                    </h3>
+                    {isSelected && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[10px] font-bold">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Active
+                      </span>
+                    )}
+                  </div>
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground capitalize mt-0.5">
+                    <Layers className="w-3 h-3" />
+                    {period.type} Window
+                  </span>
+                </div>
+
+                <div className="w-9 h-9 rounded-xl bg-muted/80 flex items-center justify-center text-muted-foreground shrink-0">
+                  <Clock className="w-4 h-4 text-primary" />
                 </div>
               </div>
 
               {/* Dates section */}
-              <div className="flex items-center space-x-2 text-gray-600">
-                <Calendar className="w-4 h-4" />
-                <div className="flex flex-col space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm font-medium">
-                      {formatDateWithDay(period.startDate)}
-                    </span>
-                    <span>-</span>
-                    <span className="text-sm font-medium">
-                      {formatDateWithDay(period.endDate)}
-                    </span>
-                  </div>
+              <div className="p-3 rounded-xl bg-muted/40 border border-border/50 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Calendar className="w-3.5 h-3.5 text-primary" />
+                  <span className="font-semibold text-foreground">Active Range</span>
+                </div>
+                <div className="text-muted-foreground font-medium pl-5">
+                  {formatDateWithDay(period.startDate)} — {formatDateWithDay(period.endDate)}
                 </div>
               </div>
 
-              {/* Created info */}
-              <div className="flex justify-between items-center pt-2 text-xs text-gray-500">
-                <span>Created by {period.createdBy}</span>
-                <span>{formatCreatedAt(period.createdAt)}</span>
-              </div>
+              {/* Action Button & Modal */}
+              <div className="pt-2">
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button
+                      onClick={() => handleDialogOpen(period.id)}
+                      variant={isSelected ? "default" : "outline"}
+                      className={`w-full rounded-xl text-xs font-semibold shadow-xs transition-all duration-200 ${
+                        isSelected
+                          ? "bg-primary hover:bg-primary/90 text-primary-foreground"
+                          : "border-border hover:bg-accent text-foreground"
+                      }`}
+                    >
+                      {isSelected ? "Manage Selected Window" : "View & Select Window"}
+                    </Button>
+                  </DialogTrigger>
 
-              {/* Open Dialog Button */}
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button 
-                    onClick={() => handleDialogOpen(period.id)}
-                    variant={(selectedTimeFrames || []).includes(period.id) ? "secondary" : "default"}
-                  >
-                    View Details
-                  </Button>
-                </DialogTrigger>
-                {selectedPeriod && (
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>{selectedPeriod.name}</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <p>Start Date: {formatDateWithDay(selectedPeriod.startDate)}</p>
-                      <p>End Date: {formatDateWithDay(selectedPeriod.endDate)}</p>
-                    </div>
-                    <DialogFooter className="flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
-                      <Button 
-                        onClick={handleChoose}
-                        variant={(selectedTimeFrames || []).includes(period.id) ? "secondary" : "default"}
-                        className="w-full sm:w-auto"
-                      >
-                        {(selectedTimeFrames || []).includes(period.id) ? 'Remove Selection' : 'Add Selection'}
-                      </Button>
-                      <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2 w-full sm:w-auto">
-                        <EditTimeFrame periodInfo={period} refreshData={refreshData} />
-                        <DeleteTimeFrame periodId={selectedPeriodId} refreshData={refreshData} />
+                  {selectedPeriod && (
+                    <DialogContent className="bg-card border-border sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="text-foreground flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-primary" />
+                          <span>{selectedPeriod.name}</span>
+                        </DialogTitle>
+                      </DialogHeader>
+
+                      <div className="space-y-3 py-2 text-sm">
+                        <div className="p-3 rounded-xl bg-muted/50 border border-border/60 space-y-1">
+                          <p className="text-xs text-muted-foreground">Date Range:</p>
+                          <p className="font-semibold text-foreground">
+                            {formatDateWithDay(selectedPeriod.startDate)} to {formatDateWithDay(selectedPeriod.endDate)}
+                          </p>
+                        </div>
                       </div>
-                    </DialogFooter>
-                  </DialogContent>
-                )}
-              </Dialog>
+
+                      <DialogFooter className="flex-col sm:flex-row gap-2 pt-2">
+                        <Button
+                          onClick={handleChoose}
+                          variant={isSelected ? "destructive" : "default"}
+                          className="w-full sm:w-auto rounded-xl text-xs font-semibold"
+                        >
+                          {isSelected ? "Deselect Window" : "Set As Active Window"}
+                        </Button>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                          <EditTimeFrame periodInfo={period} refreshData={refreshData} />
+                          <DeleteTimeFrame periodId={selectedPeriodId} refreshData={refreshData} />
+                        </div>
+                      </DialogFooter>
+                    </DialogContent>
+                  )}
+                </Dialog>
+              </div>
 
               {/* Alert Dialog */}
               <AlertDialog open={showAlert} onOpenChange={setShowAlert}>
-                <AlertDialogContent>
+                <AlertDialogContent className="bg-card border-border">
                   <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      {(selectedTimeFrames || []).includes(selectedPeriodId) 
-                        ? 'Remove Time Frame' 
-                        : 'Add Time Frame'}
+                    <AlertDialogTitle className="text-foreground">
+                      {isSelected ? "Deselect Timeframe?" : "Activate Timeframe?"}
                     </AlertDialogTitle>
-                    <AlertDialogDescription>
-                    {(selectedTimeFrames || []).includes(selectedPeriodId)
-                      ? "Are you sure you want to remove this time frame from your selection?"
-                      : "Are you sure you want to add this time frame to your selection?"}
+                    <AlertDialogDescription className="text-muted-foreground text-xs">
+                      {isSelected
+                        ? "Removing this timeframe will hide its budgets and incomes from the active dashboard view."
+                        : "Activating this timeframe will focus the dashboard analytics and transactions on this period."}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => setShowAlert(false)}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction 
+                    <AlertDialogCancel
+                      onClick={() => setShowAlert(false)}
+                      className="rounded-xl border-border"
+                    >
+                      Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
                       onClick={handleConfirmChoice}
                       disabled={isUpdating}
+                      className="rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
                     >
-                      {isUpdating ? 'Updating...' : 'Continue'}
+                      {isUpdating ? "Updating..." : "Confirm"}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+            </CardContent>
+          </Card>
+        );
+      })}
     </>
   );
-};
-
-export default TimeFramesCreated;
+}

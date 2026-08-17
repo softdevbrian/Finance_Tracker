@@ -1,4 +1,6 @@
-import React, { useContext, useState, useEffect } from 'react';
+"use client";
+
+import React, { useContext, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -10,33 +12,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { TimeFrameContext } from '@/components/ui/TimeFrameProvider';
+import { TimeFrameContext } from "@/components/ui/TimeFrameProvider";
+import { CheckSquare, Square } from "lucide-react";
 
-const SelectAllButton = ({ periods }) => {
+export default function SelectAllButton({ periods = [] }) {
   const { selectedTimeFrames, setSelectedTimeFrames } = useContext(TimeFrameContext);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isSelectAll, setIsSelectAll] = useState(true);
 
-  // Update button state based on selected periods
   useEffect(() => {
     setIsSelectAll(selectedTimeFrames.length === 0);
   }, [selectedTimeFrames]);
 
-  const handleClick = () => {
-    setShowConfirmDialog(true);
-  };
-
   const handleConfirm = async () => {
     try {
       if (isSelectAll) {
-        // Select all periods
         for (const period of periods) {
           if (!selectedTimeFrames.includes(period.id)) {
             await setSelectedTimeFrames(period.id);
           }
         }
       } else {
-        // Unselect all periods
         for (const period of periods) {
           if (selectedTimeFrames.includes(period.id)) {
             await setSelectedTimeFrames(period.id);
@@ -44,7 +40,7 @@ const SelectAllButton = ({ periods }) => {
         }
       }
     } catch (error) {
-      console.error('Error updating selections:', error);
+      console.error("Error updating selections:", error);
     }
     setShowConfirmDialog(false);
   };
@@ -52,29 +48,41 @@ const SelectAllButton = ({ periods }) => {
   return (
     <>
       <Button
-        variant={isSelectAll ? "default" : "destructive"}
-        onClick={handleClick}
-        className="w-full md:w-auto"
+        variant="outline"
+        onClick={() => setShowConfirmDialog(true)}
+        className="rounded-xl border-border bg-card hover:bg-accent text-foreground text-xs font-semibold gap-2 shadow-xs"
       >
-        {isSelectAll ? "Select All Periods" : "Unselect All Periods"}
+        {isSelectAll ? (
+          <>
+            <CheckSquare className="w-4 h-4 text-primary" />
+            <span>Select All Timeframes</span>
+          </>
+        ) : (
+          <>
+            <Square className="w-4 h-4 text-rose-500" />
+            <span>Clear Timeframe Selection</span>
+          </>
+        )}
       </Button>
 
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-card border-border sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {isSelectAll ? "Select All Periods" : "Unselect All Periods"}
+            <AlertDialogTitle className="text-foreground">
+              {isSelectAll ? "Select all timeframes?" : "Clear active timeframe selection?"}
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              {isSelectAll 
-                ? "Are you sure you want to select all periods?"
-                : "Are you sure you want to unselect all periods?"
-              }
+            <AlertDialogDescription className="text-muted-foreground text-xs">
+              {isSelectAll
+                ? "This will combine budgets and transactions across all recorded periods into the dashboard."
+                : "This will deselect all timeframes. You will need to select at least one timeframe to view records."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirm}>
+            <AlertDialogCancel className="rounded-xl border-border">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirm}
+              className="rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+            >
               Continue
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -82,6 +90,4 @@ const SelectAllButton = ({ periods }) => {
       </AlertDialog>
     </>
   );
-};
-
-export default SelectAllButton;
+}

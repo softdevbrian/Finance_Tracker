@@ -1,14 +1,16 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { db } from "../../../../../../utils/dbConfig"; 
+import { db } from "../../../../../../utils/dbConfig";
 import { Budgets, Expenses, Periods } from "../../../../../../utils/schema";
-import { Loader } from "lucide-react";
+import { Loader2, PlusCircle, CalendarCheck, AlertCircle } from "lucide-react";
 import moment from "moment";
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { eq } from 'drizzle-orm';
+import { eq } from "drizzle-orm";
 
-function AddExpense({ budgetId, user, refreshData }) {
+export default function AddExpense({ budgetId, refreshData }) {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState("");
@@ -16,11 +18,9 @@ function AddExpense({ budgetId, user, refreshData }) {
   const [periodDates, setPeriodDates] = useState(null);
   const [validationInfo, setValidationInfo] = useState(null);
 
-  // Fetch period dates when component mounts
   useEffect(() => {
     const fetchPeriodDates = async () => {
       try {
-        // First get the budget to find its periodId
         const budget = await db
           .select({ periodId: Budgets.periodId })
           .from(Budgets)
@@ -28,11 +28,10 @@ function AddExpense({ budgetId, user, refreshData }) {
           .limit(1);
 
         if (budget && budget[0]) {
-          // Then get the period details
           const period = await db
             .select({
               startDate: Periods.startDate,
-              endDate: Periods.endDate
+              endDate: Periods.endDate,
             })
             .from(Periods)
             .where(eq(Periods.id, budget[0].periodId))
@@ -40,26 +39,21 @@ function AddExpense({ budgetId, user, refreshData }) {
 
           if (period && period[0]) {
             setPeriodDates(period[0]);
-            console.log("Period dates fetched:", period[0]); // Debug log
           }
         }
       } catch (error) {
         console.error("Error fetching period dates:", error);
-        toast.error("Failed to fetch budget period");
       }
     };
 
     fetchPeriodDates();
   }, [budgetId]);
 
-  // Set default date to today when component mounts
   useEffect(() => {
-    const today = new Date();
-    const formattedDate = today.toISOString().split('T')[0];
-    setDate(formattedDate);
+    const today = new Date().toISOString().split("T")[0];
+    setDate(today);
   }, []);
 
-  // Update validation info whenever date or periodDates change
   useEffect(() => {
     if (!date || !periodDates) return;
 
@@ -67,41 +61,23 @@ function AddExpense({ budgetId, user, refreshData }) {
       const expenseDate = moment(date);
       const startDate = moment(periodDates.startDate, "YYYY-MM-DD");
       const endDate = moment(periodDates.endDate, "YYYY-MM-DD");
-      const isValid = expenseDate.isBetween(startDate, endDate, 'day', '[]');
+      const isValid = expenseDate.isBetween(startDate, endDate, "day", "[]");
 
       setValidationInfo({
-        expenseDate: expenseDate.format("YYYY-MM-DD"),
-        startDate: startDate.format("YYYY-MM-DD"),
-        endDate: endDate.format("YYYY-MM-DD"),
         isValid,
-        message: `Date validation: ${isValid ? 'Valid' : 'Invalid'}`
-      });
-
-      console.log("Validation check:", { // Debug log
-        expenseDate: expenseDate.format("YYYY-MM-DD"),
-        startDate: startDate.format("YYYY-MM-DD"),
-        endDate: endDate.format("YYYY-MM-DD"),
-        isValid
+        message: isValid
+          ? "Date is within active period"
+          : `Date must be between ${periodDates.startDate} and ${periodDates.endDate}`,
       });
     } catch (error) {
-      console.error("Date validation error:", error);
-      setValidationInfo({
-        message: "Date validation error",
-        error: error.toString(),
-        isValid: false
-      });
+      setValidationInfo({ isValid: false, message: "Invalid date format" });
     }
   }, [date, periodDates]);
-
-  const handleDateChange = (e) => {
-    const newDate = e.target.value;
-    setDate(newDate);
-  };
 
   const addNewExpense = async () => {
     if (!validationInfo?.isValid) {
       toast.error(
-        `Expense date must be between ${periodDates.startDate} and ${periodDates.endDate}`
+        `Expense date must fall within ${periodDates.startDate} to ${periodDates.endDate}`
       );
       return;
     }
@@ -109,7 +85,7 @@ function AddExpense({ budgetId, user, refreshData }) {
     setLoading(true);
     try {
       const formattedDate = moment(date).format("DD/MM/YYYY");
-      
+
       const result = await db
         .insert(Expenses)
         .values({
@@ -118,80 +94,93 @@ function AddExpense({ budgetId, user, refreshData }) {
           budgetId: budgetId,
           createdAt: formattedDate,
         })
-        .returning({ insertedId: Budgets.id });
+        .returning({ insertedId: Expenses.id });
 
       if (result) {
-        refreshData();
-        toast.success("New Expense Added!");
+        if (refreshData) await refreshData();
+        toast.success("Expense logged successfully!");
         setAmount("");
         setName("");
-        const today = new Date().toISOString().split('T')[0];
-        setDate(today);
+        setDate(new Date().toISOString().split("T")[0]);
       }
     } catch (error) {
       console.error("Error adding expense:", error);
-      toast.error("Failed to add expense");
+      toast.error("Failed to record expense");
     } finally {
       setLoading(false);
     }
   };
 
-  const isFormValid = () => {
-    return name && 
-           amount && 
-           date && 
-           validationInfo?.isValid && 
-           !loading;
-  };
+  const isFormValid = Boolean(name && amount && date && validationInfo?.isValid && !loading);
 
   return (
-    <div className="border p-5 rounded-2xl">
-      <h2 className="font-bold text-lg">Add Expense</h2>
-      <div className="mt-2">
-        <h2 className="text-black font-medium my-1">Expense Name</h2>
-        <Input
-          placeholder="e.g. Bedroom Decor"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+    <div className="p-6 rounded-2xl bg-card border border-border/80 shadow-xs space-y-4">
+      <div className="flex items-center gap-2 pb-2 border-b border-border/60">
+        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+          <PlusCircle className="w-4 h-4" />
+        </div>
+        <h3 className="text-base font-bold text-foreground">Log New Expense</h3>
       </div>
-      <div className="mt-2">
-        <h2 className="text-black font-medium my-1">Expense Amount</h2>
-        <Input
-          type="number"
-          placeholder="e.g. 1000"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
+
+      <div className="space-y-4">
+        <div>
+          <label className="text-xs font-semibold text-foreground uppercase tracking-wider block mb-1.5">
+            Expense Name
+          </label>
+          <Input
+            placeholder="e.g. Weekly Groceries"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="bg-background border-border text-foreground rounded-xl"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-foreground uppercase tracking-wider block mb-1.5">
+            Amount (Ksh)
+          </label>
+          <Input
+            type="number"
+            placeholder="e.g. 2500"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="bg-background border-border text-foreground rounded-xl"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-foreground uppercase tracking-wider block mb-1.5">
+            Transaction Date
+          </label>
+          <Input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="bg-background border-border text-foreground rounded-xl"
+          />
+
+          {validationInfo && (
+            <div className={`mt-2 flex items-center gap-1.5 text-xs ${
+              validationInfo.isValid ? "text-primary" : "text-amber-500"
+            }`}>
+              {validationInfo.isValid ? (
+                <CalendarCheck className="w-3.5 h-3.5 shrink-0" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span>{validationInfo.message}</span>
+            </div>
+          )}
+        </div>
+
+        <Button
+          disabled={!isFormValid}
+          onClick={addNewExpense}
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl shadow-xs transition-all duration-200"
+        >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Log Expense Entry"}
+        </Button>
       </div>
-      <div className="mt-2">
-        <h2 className="text-black font-medium my-1">Date</h2>
-        <Input
-          type="date"
-          value={date}
-          onChange={handleDateChange}
-        />
-        {periodDates && (
-          <p className="text-sm text-gray-500 mt-1">
-            Valid dates: {periodDates.startDate} - {periodDates.endDate}
-          </p>
-        )}
-        {/* Debug information */}
-        {/* {validationInfo && (
-          <div className="text-xs text-gray-500 mt-1 p-2 bg-gray-100 rounded">
-            <pre>{JSON.stringify(validationInfo, null, 2)}</pre>
-          </div>
-        )} */}
-      </div>
-      <Button
-        disabled={!isFormValid()}
-        onClick={addNewExpense}
-        className="mt-3 w-full rounded-full"
-      >
-        {loading ? <Loader className="animate-spin" /> : "Add New Expense"}
-      </Button>
     </div>
   );
 }
-
-export default AddExpense;

@@ -1,78 +1,68 @@
 import Link from "next/link";
 import React from "react";
+import formatNumber from "../../../../../../utils";
 
-function BudgetItem({ budget }) {
-  const calculateProgressPerc = () => {
-    const perc = (budget.totalSpend / budget.amount) * 100;
-    return perc > 100 ? 100 : perc.toFixed(2);
+export default function BudgetItem({ budget }) {
+  const amount = parseFloat(budget?.amount || 0);
+  const totalSpend = parseFloat(budget?.totalSpend || 0);
+  const remaining = amount - totalSpend;
+  const perc = amount > 0 ? (totalSpend / amount) * 100 : 0;
+  const clampedPerc = Math.min(100, Math.max(0, perc));
+
+  const getStatusColor = () => {
+    if (perc >= 90) return { bar: "bg-rose-500", text: "text-rose-500", badge: "bg-rose-500/10 text-rose-500" };
+    if (perc >= 65) return { bar: "bg-amber-500", text: "text-amber-500", badge: "bg-amber-500/10 text-amber-500" };
+    return { bar: "bg-primary", text: "text-primary", badge: "bg-primary/10 text-primary" };
   };
 
-  const getTextColor = () => {
-    const perc = calculateProgressPerc();
-    if (perc >= 75) return "text-red-500"; // Red for 75% and above
-    if (perc >= 50) return "text-orange-500"; // Orange for 50% and above
-    return "text-slate-400"; // Default neutral color
-  };
-
-  const getProgressBarColor = () => {
-    const perc = calculateProgressPerc();
-    if (perc >= 75) return "bg-red-500"; // Red for 75% and above
-    if (perc >= 50) return "bg-orange-500"; // Orange for 50% and above
-    return "bg-primary"; // Default color
-  };
-
-  const shouldBounce = () => {
-    return calculateProgressPerc() >= 75; // Add bounce animation for 75% and above
-  };
+  const status = getStatusColor();
 
   return (
     <Link href={"/dashboard/expenses/" + budget?.id}>
-      <div
-        className="p-5 border rounded-2xl
-        hover:shadow-md cursor-pointer h-[170px] mb-3"
-      >
-        <div className="flex gap-2 items-center justify-between">
-          <div className="flex gap-2 items-center">
-            <h2
-              className="text-2xl p-3 px-4
-              bg-orange-500 rounded-full"
-            >
-              {budget?.icon}
-            </h2>
-            <div>
-              <h2 className="font-bold md:text-base text-sm">{budget.name}</h2> {/* Added responsive text */}
-              <h2 className="text-sm text-gray-500 md:text-sm text-xs">{budget.totalItem} Items</h2> {/* Added responsive text */}
+      <div className="p-5 rounded-2xl bg-card border border-border/80 hover:border-primary/40 shadow-xs hover:shadow-md transition-all duration-300 hover:scale-[1.01] cursor-pointer group space-y-4">
+        {/* Top Header */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-muted/80 border border-border/60 flex items-center justify-center text-2xl shrink-0 group-hover:scale-110 transition-transform">
+              {budget?.icon || "🏷️"}
+            </div>
+            <div className="min-w-0">
+              <h4 className="font-bold text-sm md:text-base text-foreground truncate group-hover:text-primary transition-colors">
+                {budget.name}
+              </h4>
+              <p className="text-xs text-muted-foreground font-medium">
+                {budget.totalItem || 0} expenses logged
+              </p>
             </div>
           </div>
-          <h2 className="font-bold text-primary md:text-lg text-sm"> {/* Added responsive text */}
-            Ksh.{budget.amount}
-          </h2>
-        </div>
-  
-        <div className={`mt-7 ${shouldBounce() ? "animate-bounce" : ""}`}>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className={`md:text-xs text-[10px] ${getTextColor()}`}> {/* Added responsive text */}
-              Ksh.{budget.totalSpend ? budget.totalSpend : 0} Spend
-            </h2>
-            <h2 className={`md:text-xs text-[10px] ${getTextColor()}`}> {/* Added responsive text */}
-              Ksh.{budget.amount - budget.totalSpend} Remaining
-            </h2>
+
+          <div className="text-right shrink-0">
+            <span className="text-xs text-muted-foreground font-medium block">Allocated</span>
+            <span className="font-bold text-sm md:text-base text-foreground">
+              Ksh.{formatNumber(amount)}
+            </span>
           </div>
-          <div
-            className="w-full 
-            bg-slate-300 h-2 rounded-full"
-          >
+        </div>
+
+        {/* Progress Bar & Spend Metrics */}
+        <div className="space-y-2 pt-1">
+          <div className="flex items-center justify-between text-xs font-medium">
+            <span className={status.text}>
+              Ksh.{formatNumber(totalSpend)} ({clampedPerc.toFixed(0)}%)
+            </span>
+            <span className="text-muted-foreground">
+              Ksh.{formatNumber(remaining >= 0 ? remaining : 0)} left
+            </span>
+          </div>
+
+          <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
             <div
-              className={`${getProgressBarColor()} h-2 rounded-full`}
-              style={{
-                width: `${calculateProgressPerc()}%`,
-              }}
-            ></div>
+              className={`h-full rounded-full transition-all duration-500 ${status.bar}`}
+              style={{ width: `${clampedPerc}%` }}
+            />
           </div>
         </div>
       </div>
     </Link>
   );
 }
-
-export default BudgetItem;

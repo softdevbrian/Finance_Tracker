@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import {
   Bar,
@@ -8,43 +10,54 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import formatNumber from "../../../../../../utils";
 
-function BarChartComponent({ data }) {
+const CustomTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    const { name, totalSpend, amount, icon } = payload[0].payload;
+    return (
+      <div className="p-3 bg-card/95 backdrop-blur-md border border-border/80 rounded-xl shadow-xl space-y-1">
+        <p className="text-xs font-bold text-foreground mb-1">
+          {icon} {name}
+        </p>
+        <p className="text-xs font-semibold text-emerald-500">
+          Budget: Ksh.{formatNumber(amount)}
+        </p>
+        <p className="text-xs font-semibold text-rose-500">
+          Spent: Ksh.{formatNumber(totalSpend)}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
 
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const { name, totalSpend, amount, icon } = payload[0].payload;
-      return (
-        <div className="custom-tooltip p-2 bg-white border rounded shadow-lg">
-          <p className="text-sm text-gray-700"><strong>{icon} {name}</strong></p>
-          <p className="text-sm text-blue-500">Budget: Ksh.{amount}</p>
-          <p className="text-sm text-red-500">Spent: Ksh.{totalSpend}</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
+export default function BarChartComponent({ data = [] }) {
   return (
-    <div className="border rounded-2xl p-5">
-      <h2 className="font-bold text-1xl mb-4 text-blue-600 text-center">Bar Chart: Spend To Budget</h2>
-      <ResponsiveContainer width={"80%"} height={300}>
+    <div className="w-full pt-2">
+      <ResponsiveContainer width="100%" height={320}>
         <BarChart
           data={data}
-          margin={{
-            top: 7,
-          }}
+          margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
         >
-          <XAxis dataKey="name" />
-          <YAxis />
-          <Tooltip content={<CustomTooltip />}/>
-          <Legend />
-          <Bar dataKey="totalSpend" stackId="a" fill="#EF4444" />  {/* Red color */}
-          <Bar dataKey="amount" stackId="b" fill="#3B82F6" />      {/* Blue color */}
+          <XAxis dataKey="name" stroke="#888888" fontSize={11} />
+          <YAxis stroke="#888888" fontSize={11} />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "10px" }} />
+          <Bar
+            dataKey="amount"
+            name="Allocated Budget"
+            fill="#10B981"
+            radius={[6, 6, 0, 0]}
+          />
+          <Bar
+            dataKey="totalSpend"
+            name="Actual Spend"
+            fill="#EF4444"
+            radius={[6, 6, 0, 0]}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>
   );
 }
-
-export default BarChartComponent;

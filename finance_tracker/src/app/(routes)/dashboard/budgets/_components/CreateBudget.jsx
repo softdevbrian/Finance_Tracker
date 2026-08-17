@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useState } from "react";
 import {
   Dialog,
@@ -19,63 +20,63 @@ import { Budgets, PeriodSelected } from "../../../../../../utils/schema";
 import { useUser } from "@clerk/nextjs";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { PlusCircle, Sparkles } from "lucide-react";
 
-function CreateBudget({ refreshData }) {
-  const [emojiIcon, setEmojiIcon] = useState("😀");
+export default function CreateBudget({ refreshData }) {
+  const [emojiIcon, setEmojiIcon] = useState("🏷️");
   const [openEmojiPicker, setOpenEmojiPicker] = useState(false);
-
-  const [name, setName] = useState();
-  const [amount, setAmount] = useState();
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
 
   const { user } = useUser();
   const router = useRouter();
 
-  /**
-   * Used to Create New Budget
-   */
   const onCreateBudget = async () => {
-    // Check how many periods are currently selected
-    const periodCount = await db
-      .select({ count: count() })
-      .from(PeriodSelected)
-      .where(eq(PeriodSelected.createdBy, user?.primaryEmailAddress?.emailAddress))
-      .then(result => result[0]?.count || 0);
+    try {
+      const periodCount = await db
+        .select({ count: count() })
+        .from(PeriodSelected)
+        .where(eq(PeriodSelected.createdBy, user?.primaryEmailAddress?.emailAddress))
+        .then((result) => result[0]?.count || 0);
 
-    // If more than one period is selected
-    if (periodCount > 1) {
-      toast('Please select only one time frame');
-      router.replace("/dashboard/timeframe");
-      return;
-    }
+      if (periodCount > 1) {
+        toast("Please select only one active time frame to create a budget category");
+        router.replace("/dashboard/timeframe");
+        return;
+      }
 
-    // Fetch the selected period for the user
-    const selectedPeriod = await db
-      .select()
-      .from(PeriodSelected)
-      .where(eq(PeriodSelected.createdBy, user?.primaryEmailAddress?.emailAddress))
-      .then(rows => rows[0] || {});
+      const selectedPeriod = await db
+        .select()
+        .from(PeriodSelected)
+        .where(eq(PeriodSelected.createdBy, user?.primaryEmailAddress?.emailAddress))
+        .then((rows) => rows[0] || {});
 
-    if (!selectedPeriod.periodId || selectedPeriod.periodId === 0) {
-      // Route to timeframe setup if no period is selected
-      toast('Choose A TimeFrame First');
-      router.replace("/dashboard/timeframe");
-      return;
-    }
+      if (!selectedPeriod.periodId || selectedPeriod.periodId === 0) {
+        toast("Choose a TimeFrame first");
+        router.replace("/dashboard/timeframe");
+        return;
+      }
 
-    const result = await db
-      .insert(Budgets)
-      .values({
-        name: name,
-        amount: amount,
-        createdBy: user?.primaryEmailAddress?.emailAddress,
-        periodId: selectedPeriod.periodId,
-        icon: emojiIcon,
-      })
-      .returning({ insertedId: Budgets.id });
+      const result = await db
+        .insert(Budgets)
+        .values({
+          name: name,
+          amount: amount,
+          createdBy: user?.primaryEmailAddress?.emailAddress,
+          periodId: selectedPeriod.periodId,
+          icon: emojiIcon,
+        })
+        .returning({ insertedId: Budgets.id });
 
-    if (result) {
-      refreshData();
-      toast("New Budget Created!");
+      if (result) {
+        refreshData();
+        toast.success("New budget category created!");
+        setName("");
+        setAmount("");
+      }
+    } catch (error) {
+      console.error("Error creating budget:", error);
+      toast.error("Failed to create budget");
     }
   };
 
@@ -83,62 +84,93 @@ function CreateBudget({ refreshData }) {
     <div>
       <Dialog>
         <DialogTrigger asChild>
-          <div
-            className="bg-orange-500 p-10 rounded-2xl
-            items-center flex flex-col border-2 border-dashed
-            cursor-pointer hover:shadow-md animate-wiggle"
-          >
-            <h2 className="text-3xl">+</h2>
-            <h2>Create New Budget</h2>
+          <div className="p-6 rounded-2xl bg-card border-2 border-dashed border-border/80 hover:border-primary/60 hover:bg-accent/30 transition-all duration-300 flex flex-col items-center justify-center cursor-pointer group shadow-xs">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary mb-2 group-hover:scale-110 group-hover:bg-primary/20 transition-all">
+              <PlusCircle className="w-6 h-6" />
+            </div>
+            <h3 className="font-bold text-sm md:text-base text-foreground group-hover:text-primary transition-colors">
+              Create New Budget Category
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Set spending limits and track expenses
+            </p>
           </div>
         </DialogTrigger>
-        <DialogContent>
+
+        <DialogContent className="bg-card border-border sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Create New Budget</DialogTitle>
-            <DialogDescription>
-              <div className="mt-5">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <DialogTitle className="text-foreground">Create Budget</DialogTitle>
+            </div>
+            <DialogDescription className="text-muted-foreground text-xs">
+              Define a budget category and its allocated target amount.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div>
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wider block mb-2">
+                Icon Emoji
+              </label>
+              <div className="relative">
                 <Button
+                  type="button"
                   variant="outline"
-                  className="text-lg"
+                  className="w-16 h-14 text-2xl border-border bg-background hover:bg-accent rounded-xl"
                   onClick={() => setOpenEmojiPicker(!openEmojiPicker)}
                 >
                   {emojiIcon}
                 </Button>
-                <div className="absolute z-20">
-                  <EmojiPicker
-                    open={openEmojiPicker}
-                    onEmojiClick={(e) => {
-                      setEmojiIcon(e.emoji);
-                      setOpenEmojiPicker(false);
-                    }}
-                  />
-                </div>
-                <div className="mt-2">
-                  <h2 className="text-black font-medium my-1">Budget Name</h2>
-                  <Input
-                    placeholder="e.g. House Construction"
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
-                <div className="mt-2">
-                  <h2 className="text-black font-medium my-1">Budget Amount</h2>
-                  <Input
-                    type="number"
-                    placeholder="e.g. Ksh.500000"
-                    onChange={(e) => setAmount(e.target.value)}
-                  />
-                </div>
+                {openEmojiPicker && (
+                  <div className="absolute z-50 top-16 left-0 shadow-2xl">
+                    <EmojiPicker
+                      onEmojiClick={(e) => {
+                        setEmojiIcon(e.emoji);
+                        setOpenEmojiPicker(false);
+                      }}
+                    />
+                  </div>
+                )}
               </div>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="sm:justify-start">
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wider block mb-1.5">
+                Category Name
+              </label>
+              <Input
+                placeholder="e.g. Groceries, Rent, Utilities"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="bg-background border-border text-foreground rounded-xl"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wider block mb-1.5">
+                Budget Limit Amount (Ksh)
+              </label>
+              <Input
+                type="number"
+                placeholder="e.g. 25000"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="bg-background border-border text-foreground rounded-xl"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="pt-4">
             <DialogClose asChild>
               <Button
                 disabled={!(name && amount)}
-                onClick={() => onCreateBudget()}
-                className="mt-5 w-full rounded-full"
+                onClick={onCreateBudget}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl shadow-xs"
               >
-                Create Budget
+                Create Budget Category
               </Button>
             </DialogClose>
           </DialogFooter>
@@ -147,5 +179,3 @@ function CreateBudget({ refreshData }) {
     </div>
   );
 }
-
-export default CreateBudget;

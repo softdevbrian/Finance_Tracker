@@ -3,35 +3,47 @@
 import { SignIn } from "@clerk/nextjs";
 import React from "react";
 import ImageCarousel from "./ImageCarousel";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { Wallet } from "lucide-react";
+import Link from "next/link";
 
 export default function Page() {
   return (
-    <section className="bg-white">
+    <section className="min-h-screen bg-background text-foreground flex flex-col justify-center">
       <div className="lg:grid lg:min-h-screen lg:grid-cols-12">
         <ImageCarousel />
-        <main className="flex items-center justify-center px-8 py-8 sm:px-12 lg:col-span-7 lg:px-16 lg:py-12 xl:col-span-6">
-          <div className="max-w-xl lg:max-w-3xl ">
-            <div className="relative -mt-16 block lg:hidden">
-              <a
-                className="inline-flex size-16 items-center justify-center rounded-full bg-white text-blue-600 sm:size-20"
-                href="#"
-              >
-                <span className="sr-only">Home</span>
-                <img
-                  src="../../favicon.ico"
-                  alt="Home"
-                  className="w-12 h-12 "
-                />
-              </a>
-              <h1 className="mt-2 text-2xl font-bold text-gray-900 sm:text-3xl md:text-4xl">
-                Welcome to Finance Tracker 💸💰🪙💴
-              </h1>
 
-              <p className="mt-4 leading-relaxed text-gray-500">
-              Take control of your finances with ease! Track your income, expenses, and budgets effortlessly while planning for a brighter financial future.
+        <main className="relative flex items-center justify-center p-6 sm:p-12 lg:col-span-7 xl:col-span-6">
+          {/* Top Right Theme Toggle */}
+          <div className="absolute top-6 right-6 z-20">
+            <ThemeToggle />
+          </div>
+
+          <div className="w-full max-w-md space-y-6">
+            {/* Mobile Header */}
+            <div className="lg:hidden flex items-center gap-3 mb-6">
+              <Link href="/" className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <span className="font-bold text-xl text-foreground">
+                  Finance<span className="text-primary font-extrabold ml-1">Tracker</span>
+                </span>
+              </Link>
+            </div>
+
+            <div className="text-left space-y-1 mb-6">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+                Welcome back
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Sign in to your account to monitor your finances and budgets.
               </p>
             </div>
-            <SignIn />
+
+            <div className="flex justify-center">
+              <SignIn />
+            </div>
           </div>
         </main>
       </div>

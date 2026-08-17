@@ -1,16 +1,17 @@
 "use client";
+
 import React, { useEffect, useContext } from "react";
-import SideNav from "./_components/SideNav";
+import Sidebar from "./_components/Sidebar";
 import DashboardHeader from "./_components/DashboardHeader";
 import { db } from "../../../../utils/dbConfig";
-import { Budgets, Periods, Incomes, Expenses, PeriodSelected } from "../../../../utils/schema";
+import { Budgets, Incomes, Expenses, PeriodSelected } from "../../../../utils/schema";
 import { useUser } from "@clerk/nextjs";
 import { eq, and, inArray } from "drizzle-orm";
 import { useRouter } from "next/navigation";
 import { TimeFrameContext } from "@/components/ui/TimeFrameProvider";
 
-function DashboardLayout({ children }) {
-  const { selectedTimeFrame, setSelectedTimeFrame } = useContext(TimeFrameContext);
+export default function DashboardLayout({ children }) {
+  const { selectedTimeFrames } = useContext(TimeFrameContext);
   const { user } = useUser();
   const router = useRouter();
 
@@ -22,85 +23,61 @@ function DashboardLayout({ children }) {
 
   const checkUserBudgets = async () => {
     try {
+      if (!user?.primaryEmailAddress?.emailAddress) return;
+
       // Fetch the selected period for the user
-      const selectedPeriod = await db
+      const selectedPeriods = await db
         .select()
         .from(PeriodSelected)
-        .where(eq(PeriodSelected.createdBy, user?.primaryEmailAddress?.emailAddress))
-        .then(rows => rows[0] || {});
+        .where(eq(PeriodSelected.createdBy, user?.primaryEmailAddress?.emailAddress));
 
-      if (!selectedPeriod.periodId || selectedPeriod == 0) {
-        // Route to timeframe setup if no period is selected
+      if (!selectedPeriods || selectedPeriods.length === 0) {
         router.replace("/dashboard/timeframe");
         return;
       }
 
-      // Fetch incomes for the current user and selected period
+      // Fetch incomes for the current user
       const incomes = await db
-      .select()
-      .from(Incomes)
-      .where(
-        and(
-          eq(Incomes.createdBy, user?.primaryEmailAddress?.emailAddress)
-        )
-      );
+        .select()
+        .from(Incomes)
+        .where(eq(Incomes.createdBy, user?.primaryEmailAddress?.emailAddress));
 
-    if (incomes.length === 0) {
-      // Route to incomes setup if incomes are empty
-      router.replace("/dashboard/incomes");
-      return;
-    }
+      if (incomes.length === 0) {
+        router.replace("/dashboard/incomes");
+        return;
+      }
 
-    // Fetch budgets for the current user and selected period
-    const budgets = await db
-      .select()
-      .from(Budgets)
-      .where(
-        and(
-          eq(Budgets.createdBy, user?.primaryEmailAddress?.emailAddress)
-        )
-      );
+      // Fetch budgets for the current user
+      const budgets = await db
+        .select()
+        .from(Budgets)
+        .where(eq(Budgets.createdBy, user?.primaryEmailAddress?.emailAddress));
 
-
-    if (budgets.length === 0) {
-      // Route to budgets setup if budgets are empty
-      router.replace("/dashboard/budgets");
-      return;
-    }
-
-    // Fetch expenses for the current user and their budgets
-    const expenses = await db
-      .select()
-      .from(Expenses)
-      .where(
-        inArray(Expenses.budgetId, budgets.map(b => b.id))
-      );
-
-    if (expenses.length === 0) {
-      // Route to budgets page if expenses are empty
-      router.replace("/dashboard/budgets");
-      return;
-    }
-
-      // If all checks pass, allow the user to proceed
-      //console.log("All checks passed.");
-      router.replace("/dashboard");
+      if (budgets.length === 0) {
+        router.replace("/dashboard/budgets");
+        return;
+      }
     } catch (error) {
-      console.error("Error checking user budgets:", error);
+      console.error("Error checking user setup:", error);
     }
   };
 
   return (
-    <div>
-      <div className="fixed md:w-64 hidden md:block">
-        <SideNav />
+    <div className="min-h-screen bg-background text-foreground flex">
+      {/* Desktop Fixed Sidebar */}
+      <div className="fixed inset-y-0 left-0 hidden md:block w-64 z-40">
+        <Sidebar isMobile={false} />
       </div>
-      <div className="md:ml-64">
+
+      {/* Main Content Area */}
+      <div className="flex-1 md:pl-64 flex flex-col min-h-screen min-w-0">
         <DashboardHeader />
-        {children}
+        <main className="flex-1 p-4 md:p-8 bg-background/50">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );
 }
-
-export default DashboardLayout;

@@ -1,43 +1,27 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
 import formatNumber from "../../../../../utils";
-import { CreditCard, ShoppingCart, List, TrendingDown, ArrowDownCircle, ShieldCheck, PiggyBank } from 'lucide-react';
+import {
+  CreditCard,
+  ShoppingCart,
+  List,
+  TrendingDown,
+  ArrowDownCircle,
+  ShieldCheck,
+  PiggyBank,
+  AlertTriangle,
+  Sparkles,
+} from "lucide-react";
 import financialAdviceData from "@/app/financialAdviceData";
 
-function CardInfo({ budgetList, incomeList, currentUserEmail }) {
+export default function CardInfo({ budgetList = [], incomeList = [], currentUserEmail }) {
   const [totalBudget, setTotalBudget] = useState(0);
   const [totalSpend, setTotalSpend] = useState(0);
   const [totalIncome, setTotalIncome] = useState(0);
   const [expectedSavings, setExpectedSavings] = useState(0);
   const [actualSavings, setActualSavings] = useState(0);
   const [financialAdvice, setFinancialAdvice] = useState("");
-
-  // Function to get spend card style based on conditions
-  const getSpendCardStyle = (card) => {
-    if (card.label === "Total Spend") {
-      if (totalSpend > totalIncome) {
-        return "bg-gradient-to-r from-red-400 via-red-500 to-red-600 animate-bounce";
-      }
-      if (totalSpend > totalBudget) {
-        return "bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600 animate-pulse";
-      }
-      return "bg-gradient-to-r from-green-400 via-green-500 to-green-600";
-    }
-    // Return fixed gradient for each card
-    switch (card.label) {
-      case "Total Budget":
-        return "bg-gradient-to-r from-orange-400 via-orange-500 to-orange-600";
-      case "Total Income":
-        return "bg-gradient-to-r from-green-400 via-green-500 to-green-600";
-      case "No. of Budgets":
-        return "bg-gradient-to-r from-purple-400 via-purple-500 to-purple-600";
-      case "Expected Savings":
-        return "bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600";
-      case "Actual Savings":
-        return "bg-gradient-to-r from-yellow-400 via-yellow-500 to-amber-500";
-      default:
-        return "bg-gradient-to-r from-gray-400 via-gray-500 to-gray-600";
-    }
-  };
 
   useEffect(() => {
     if (incomeList.length && currentUserEmail) {
@@ -66,65 +50,47 @@ function CardInfo({ budgetList, incomeList, currentUserEmail }) {
     setActualSavings(actualSavings_);
   };
 
-  // Function to determine the scenario
-  function determineScenario(totalBudget, totalSpend, totalIncome) {
-    if (totalIncome > totalBudget && totalBudget > totalSpend) {
-      return "scenario1"; // Income > Budget > Spend
-    } else if (totalBudget > totalIncome && totalIncome > totalSpend) {
-      return "scenario2"; // Budget > Income > Spend
-    } else if (totalSpend > totalBudget && totalSpend < totalIncome) {
-      return "scenario3"; // Spend > Budget but Spend < Income
-    } else if (totalSpend > totalIncome && totalSpend > totalBudget) {
-      return "scenario4"; // Spend > Income and Spend > Budget
-    } else if (totalIncome > totalSpend && totalSpend > totalBudget) {
-      return "scenario5"; // Income > Spend > Budget
-    } else if (totalIncome === totalBudget && totalSpend < totalIncome) {
-      return "scenario6"; // Income = Budget > Spend
-    } else if (totalIncome === totalSpend && totalSpend > totalBudget) {
-      return "scenario7"; // Income = Spend > Budget
-    } else if (totalSpend === totalBudget && totalIncome < totalSpend) {
-      return "scenario8"; // Spend = Budget > Income
-    } else if (totalIncome === totalSpend && totalSpend === totalBudget) {
-      return "scenario9"; // Income = Budget = Spend
-    } else if (totalSpend > totalIncome && totalSpend < totalBudget)  {
-      return "scenario10"; // Spend > Budget > Income
-    }else if (totalSpend > totalIncome && totalIncome === totalBudget)  {
-      return "scenario11"; // Spend > Budget > Income
-    } else {
-      return "unknownScenario"; // For any unexpected input or edge cases
-    }
+  function determineScenario(tBudget, tSpend, tIncome) {
+    if (tIncome > tBudget && tBudget > tSpend) return "scenario1";
+    if (tBudget > tIncome && tIncome > tSpend) return "scenario2";
+    if (tSpend > tBudget && tSpend < tIncome) return "scenario3";
+    if (tSpend > tIncome && tSpend > tBudget) return "scenario4";
+    if (tIncome > tSpend && tSpend > tBudget) return "scenario5";
+    if (tIncome === tBudget && tSpend < tIncome) return "scenario6";
+    if (tIncome === tSpend && tSpend > tBudget) return "scenario7";
+    if (tSpend === tBudget && tIncome < tSpend) return "scenario8";
+    if (tIncome === tSpend && tSpend === tBudget) return "scenario9";
+    if (tSpend > tIncome && tSpend < tBudget) return "scenario10";
+    if (tSpend > tIncome && tIncome === tBudget) return "scenario11";
+    return "unknownScenario";
   }
 
-  // Function to alternate advice every 3 minutes
-  function provideAdvice(totalBudget, totalSpend, totalIncome) {
-    const scenario = determineScenario(totalBudget, totalSpend, totalIncome);
+  function provideAdvice(tBudget, tSpend, tIncome) {
+    const scenario = determineScenario(tBudget, tSpend, tIncome);
 
     if (!scenario || !financialAdviceData[scenario] || financialAdviceData[scenario].length === 0) {
-      setFinancialAdvice("Unable to determine scenario or no advice available.");
+      setFinancialAdvice("Reviewing your balances... keep tracking your expenses to generate personalized recommendations.");
       return;
     }
 
     const adviceArray = financialAdviceData[scenario];
     let index = 0;
-
-    // Display the first advice immediately
     setFinancialAdvice(adviceArray[0]);
 
-    // Set an interval to alternate advice every 3 minutes (180,000 ms)
     const intervalId = setInterval(() => {
-      index = (index + 1) % adviceArray.length; // Loop through advice
+      index = (index + 1) % adviceArray.length;
       setFinancialAdvice(adviceArray[index]);
     }, 20000);
 
-    // Optional: Stop the interval after a certain duration (e.g., 12 minutes)
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       clearInterval(intervalId);
-      console.log("Advice rotation stopped.");
-    }, 720000); // 12 minutes in milliseconds
-  }
+    }, 720000);
 
-  // Example Usage:
-  //provideAdvice(5000, 3000, 8000); // Replace with actual data
+    return () => {
+      clearInterval(intervalId);
+      clearTimeout(timeoutId);
+    };
+  }
 
   useEffect(() => {
     if (totalIncome > 0 || budgetList.length > 0) {
@@ -134,67 +100,148 @@ function CardInfo({ budgetList, incomeList, currentUserEmail }) {
 
   useEffect(() => {
     if (totalBudget > 0 || totalIncome > 0 || totalSpend > 0) {
-      provideAdvice(totalBudget, totalSpend, totalIncome)
+      provideAdvice(totalBudget, totalSpend, totalIncome);
     }
   }, [totalBudget, totalIncome, totalSpend]);
 
+  const isOverIncome = totalSpend > totalIncome && totalIncome > 0;
+  const isOverBudget = totalSpend > totalBudget && totalBudget > 0;
+
+  const cards = [
+    {
+      label: "Total Budget",
+      value: `Ksh.${formatNumber(totalBudget)}`,
+      icon: CreditCard,
+      badge: "Target",
+      iconBg: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+      accent: "hover:border-blue-500/40",
+    },
+    {
+      label: "Total Spend",
+      value: `Ksh.${formatNumber(totalSpend)}`,
+      icon: ShoppingCart,
+      badge: isOverIncome ? "Over Income" : isOverBudget ? "Over Budget" : "Normal",
+      iconBg: isOverIncome
+        ? "bg-rose-500/10 text-rose-500 border-rose-500/20 animate-pulse"
+        : isOverBudget
+        ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+        : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+      accent: isOverIncome
+        ? "border-rose-500/50 bg-rose-500/5"
+        : isOverBudget
+        ? "border-amber-500/50 bg-amber-500/5"
+        : "hover:border-emerald-500/40",
+    },
+    {
+      label: "No. of Budgets",
+      value: budgetList?.length || 0,
+      icon: List,
+      badge: "Categories",
+      iconBg: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+      accent: "hover:border-purple-500/40",
+    },
+    {
+      label: "Total Income",
+      value: `Ksh.${formatNumber(totalIncome)}`,
+      icon: TrendingDown,
+      badge: "Inflow",
+      iconBg: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+      accent: "hover:border-emerald-500/40",
+    },
+    {
+      label: "Expected Savings",
+      value: `Ksh.${formatNumber(expectedSavings)}`,
+      icon: ArrowDownCircle,
+      badge: "Projected",
+      iconBg: "bg-cyan-500/10 text-cyan-500 border-cyan-500/20",
+      accent: "hover:border-cyan-500/40",
+    },
+    {
+      label: "Actual Savings",
+      value: `Ksh.${formatNumber(actualSavings)}`,
+      icon: PiggyBank,
+      badge: actualSavings >= 0 ? "Surplus" : "Deficit",
+      iconBg:
+        actualSavings >= 0
+          ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+          : "bg-rose-500/10 text-rose-500 border-rose-500/20",
+      accent:
+        actualSavings >= 0
+          ? "hover:border-amber-500/40"
+          : "border-rose-500/40 bg-rose-500/5",
+    },
+  ];
+
   return (
-    <div>
-      {budgetList?.length > 0 ? (
-        <div>
-          <div className="p-7 border mt-4 -mb-1 rounded-2xl flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Financial Health Advisor Banner */}
+      <div className="p-6 rounded-2xl bg-card border border-border/80 shadow-xs relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -z-0 pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0 shadow-xs">
+              <ShieldCheck className="w-6 h-6 text-primary" />
+            </div>
             <div>
-              <div className="flex mb-2 flex-row space-x-1 items-center">
-                <h2 className="text-md">Finance Tracker Advisor</h2>
-                <ShieldCheck className="rounded-full text-white w-10 h-10 p-2 bg-gradient-to-r 
-                from-green-500 
-                via-orange-500 
-                to-red-500 
-                background-animate" />
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-primary">
+                  Smart Financial Advisor
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  Live Heuristics
+                </span>
               </div>
-              <h2 className="font-light text-md">
-                {financialAdvice || "Loading financial advice..."}
-              </h2>
+              <p className="text-sm md:text-base font-medium text-foreground/90 leading-relaxed max-w-3xl">
+                {financialAdvice || "Analyzing income vs. spend patterns to optimize your savings rate..."}
+              </p>
             </div>
           </div>
+        </div>
+      </div>
 
-          <div className="mt-7 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[
-              { label: "Total Budget", value: formatNumber(totalBudget), icon: CreditCard },
-              { label: "Total Spend", value: formatNumber(totalSpend), icon: ShoppingCart },
-              { label: "No. of Budgets", value: budgetList?.length, icon: List },
-              { label: "Total Income", value: formatNumber(totalIncome), icon: TrendingDown },
-              { label: "Expected Savings", value: formatNumber(expectedSavings), icon: ArrowDownCircle },
-              { label: "Actual Savings", value: formatNumber(actualSavings), icon: PiggyBank },
-            ].map((card, index) => (
+      {/* Metric Cards Grid */}
+      {budgetList?.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+          {cards.map((card, index) => {
+            const Icon = card.icon;
+            return (
               <div
                 key={index}
-                className={`p-7 border rounded-2xl flex items-center justify-between transition-all duration-300 hover:scale-105 
-                  ${getSpendCardStyle(card)} shadow-lg hover:shadow-xl`}
+                className={`p-5 rounded-2xl bg-card border border-border/80 shadow-xs transition-all duration-300 hover:shadow-md hover:scale-[1.02] ${card.accent}`}
               >
-                <div>
-                  <h2 className="text-sm text-white opacity-90">{card.label}</h2>
-                  <h2 className="font-bold text-2xl text-white">
-                    Ksh.{card.value}
-                  </h2>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    {card.label}
+                  </span>
+                  <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${card.iconBg}`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
                 </div>
-                <card.icon className="p-3 h-12 w-12 rounded-full text-white opacity-90" />
+
+                <div className="flex items-baseline justify-between">
+                  <h3 className="text-2xl font-bold tracking-tight text-foreground">
+                    {card.value}
+                  </h3>
+                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                    {card.badge}
+                  </span>
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       ) : (
-        <div className="mt-7 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {[1, 2, 3].map((item, index) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {[1, 2, 3, 4, 5, 6].map((item, index) => (
             <div
-              className="h-[110px] w-full bg-slate-200 animate-pulse rounded-lg"
               key={index}
-            ></div>
+              className="h-28 w-full bg-muted/60 animate-pulse rounded-2xl border border-border/40"
+            />
           ))}
         </div>
       )}
     </div>
   );
 }
-
-export default CardInfo;

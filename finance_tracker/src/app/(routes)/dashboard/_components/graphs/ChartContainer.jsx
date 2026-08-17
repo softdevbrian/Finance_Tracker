@@ -1,50 +1,67 @@
-import React from 'react';
-import {
-  PieChart, Pie, LineChart, Line, BarChart, Bar,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend
-} from 'recharts';
+"use client";
 
-// Shared color scheme
+import React from "react";
+import {
+  PieChart,
+  Pie,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+  Legend,
+} from "recharts";
+import formatNumber from "../../../../../../utils";
+
 const COLORS = {
-  primary: '#3B82F6',
-  secondary: '#EF4444',
-  accent: '#10B981',
-  warning: '#F59E0B',
-  purple: '#8B5CF6'
+  primary: "#10B981", // Emerald
+  secondary: "#EF4444", // Rose
+  accent: "#3B82F6", // Blue
+  warning: "#F59E0B", // Amber
+  purple: "#8B5CF6", // Purple
 };
 
-// Extended color palette for multiple categories
 const EXTENDED_COLORS = [
-  '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
-  '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16'
+  "#10B981",
+  "#3B82F6",
+  "#F59E0B",
+  "#8B5CF6",
+  "#EF4444",
+  "#EC4899",
+  "#14B8A6",
+  "#F97316",
+  "#6366F1",
+  "#84CC16",
 ];
 
-// Shared tooltip component
-const CustomTooltip = ({ active, payload, tooltipType = 'comparison' }) => {
+const CustomTooltip = ({ active, payload, tooltipType = "comparison" }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="custom-tooltip p-2 bg-white border rounded shadow-lg">
-        <p className="text-sm text-gray-700">
-          <strong>{payload[0].payload.name}</strong>
+      <div className="p-3 bg-card/95 backdrop-blur-md border border-border/80 rounded-xl shadow-xl space-y-1">
+        <p className="text-xs font-bold text-foreground mb-1">
+          {payload[0].payload.name}
         </p>
-        {tooltipType === 'budget' ? (
+        {tooltipType === "budget" ? (
           <>
-            <p className="text-sm text-blue-500">
-              Budget: Ksh.{payload[0].payload.amount?.toLocaleString()}
+            <p className="text-xs font-semibold text-emerald-500">
+              Budget: Ksh.{formatNumber(payload[0].payload.amount || 0)}
             </p>
-            <p className="text-sm text-red-500">
-              Spent: Ksh.{payload[0].payload.totalSpend?.toLocaleString()}
+            <p className="text-xs font-semibold text-rose-500">
+              Spent: Ksh.{formatNumber(payload[0].payload.totalSpend || 0)}
             </p>
           </>
         ) : (
           payload.map((entry, index) => (
             <p
               key={index}
-              className={`text-sm ${
-                index === 0 ? 'text-blue-500' : 'text-red-500'
-              }`}
+              className="text-xs font-semibold text-foreground flex items-center justify-between gap-3"
             >
-              {entry.name}: Ksh.{entry.value?.toLocaleString()}
+              <span className="text-muted-foreground">{entry.name}:</span>
+              <span className="font-bold">Ksh.{formatNumber(entry.value || 0)}</span>
             </p>
           ))
         )}
@@ -55,225 +72,192 @@ const CustomTooltip = ({ active, payload, tooltipType = 'comparison' }) => {
 };
 
 export const EnhancedUniversalChart = ({
-  type = 'bar',
+  type = "bar",
   data,
-  dataType = 'comparison',
-  value1,
-  value2,
-  labels = ['Value 1', 'Value 2'],
-  title = 'Chart'
+  dataType = "comparison",
+  value1 = 0,
+  value2 = 0,
+  labels = ["Value 1", "Value 2"],
+  title = "Analytics Chart",
 }) => {
-  // Transform budget data for pie chart
   const transformBudgetData = () => {
     if (!data) return [];
-    
-    // Transform and sort data by amount/spend for better visualization
-    const sortedData = [...data].sort((a, b) => 
-      (parseFloat(b.amount) || 0) - (parseFloat(a.amount) || 0)
+    const sortedData = [...data].sort(
+      (a, b) => (parseFloat(b.amount) || 0) - (parseFloat(a.amount) || 0)
     );
-    
+
     return [
-      // First pie for budget amounts
-      ...sortedData.map(item => ({
+      ...sortedData.map((item) => ({
         name: `${item.name} (Budget)`,
         value: parseFloat(item.amount) || 0,
         category: item.name,
-        type: 'Budget'
+        type: "Budget",
       })),
-      // Second pie for spend amounts
-      ...sortedData.map(item => ({
+      ...sortedData.map((item) => ({
         name: `${item.name} (Spent)`,
         value: item.totalSpend || 0,
         category: item.name,
-        type: 'Spent'
-      }))
+        type: "Spent",
+      })),
     ];
   };
 
-  // Transform comparison data
-  const comparisonData = dataType === 'comparison' 
-    ? [{ name: 'Comparison', [labels[0]]: value1, [labels[1]]: value2 }]
-    : data;
+  const comparisonData =
+    dataType === "comparison"
+      ? [{ name: "Current Balances", [labels[0]]: value1, [labels[1]]: value2 }]
+      : data;
 
   const renderChart = () => {
     switch (type) {
-      case 'pie':
-        if (dataType === 'budget') {
+      case "pie":
+        if (dataType === "budget") {
           const transformedData = transformBudgetData();
-          const budgetData = transformedData.filter(item => item.type === 'Budget');
-          const spendData = transformedData.filter(item => item.type === 'Spent');
-          
+          const budgetData = transformedData.filter((item) => item.type === "Budget");
+          const spendData = transformedData.filter((item) => item.type === "Spent");
+
           return (
-            <div className="flex flex-col h-full gap-4">
-              <div className="w-full min-h-[300px] md:min-h-[350px]">
-                <h3 className="text-center font-semibold text-blue-600 text-sm sm:text-base mb-2">
-                  Budget Distribution
-                </h3>
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full items-center">
+              <div className="w-full flex flex-col items-center">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-500 mb-2">
+                  Budget Allocations
+                </span>
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
                     <Pie
                       data={budgetData}
                       dataKey="value"
                       cx="50%"
                       cy="50%"
-                      outerRadius={60}
-                      fill="#8884d8"
-                      label={({ value }) => `${value?.toLocaleString()}`}
+                      outerRadius={75}
+                      innerRadius={40}
+                      paddingAngle={3}
                     >
                       {budgetData.map((entry, index) => (
-                        <Cell 
+                        <Cell
                           key={`cell-budget-${index}`}
                           fill={EXTENDED_COLORS[index % EXTENDED_COLORS.length]}
                         />
                       ))}
                     </Pie>
-                    <Tooltip />
-                    <Legend 
-                      layout="horizontal"
-                      align="center"
-                      verticalAlign="bottom"
-                      wrapperStyle={{
-                        paddingTop: '10px',
-                        fontSize: '12px',
-                        maxWidth: '100%'
-                      }}
-                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-          
-              <div className="w-full min-h-[300px] md:min-h-[350px]">
-                <h3 className="text-center font-semibold text-red-600 text-sm sm:text-base mb-2">
-                  Spend Distribution
-                </h3>
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+
+              <div className="w-full flex flex-col items-center">
+                <span className="text-xs font-bold uppercase tracking-wider text-rose-500 mb-2">
+                  Spending Outflow
+                </span>
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
                     <Pie
                       data={spendData}
                       dataKey="value"
                       cx="50%"
                       cy="50%"
-                      outerRadius={60}
-                      fill="#82ca9d"
-                      label={({ value }) => `${value?.toLocaleString()}`}
+                      outerRadius={75}
+                      innerRadius={40}
+                      paddingAngle={3}
                     >
                       {spendData.map((entry, index) => (
-                        <Cell 
+                        <Cell
                           key={`cell-spend-${index}`}
                           fill={EXTENDED_COLORS[index % EXTENDED_COLORS.length]}
                         />
                       ))}
                     </Pie>
-                    <Tooltip  />
-                    <Legend 
-                      layout="horizontal"
-                      align="center"
-                      verticalAlign="bottom"
-                      wrapperStyle={{
-                        paddingTop: '10px',
-                        fontSize: '12px',
-                        maxWidth: '100%'
-                      }}
-                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
             </div>
           );
         } else {
-          // Original comparison pie chart logic
           return (
-            <PieChart>
-              <Pie
-                data={[
-                  { name: labels[0], value: value1 },
-                  { name: labels[1], value: value2 }
-                ]}
-                dataKey="value"
-                cx="50%"
-                cy="50%"
-                outerRadius={120}
-                innerRadius={50}
-                //label={({ name, value }) => `${name}: ${value?.toLocaleString()}`}
-              >
-                <Cell fill={COLORS.primary} />
-                <Cell fill={COLORS.secondary} />
-              </Pie>
-              <Tooltip content={<CustomTooltip tooltipType={dataType} />} />
-              <Legend />
-            </PieChart>
+            <ResponsiveContainer width="100%" height={320}>
+              <PieChart>
+                <Pie
+                  data={[
+                    { name: labels[0], value: value1 },
+                    { name: labels[1], value: value2 },
+                  ]}
+                  dataKey="value"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  innerRadius={50}
+                  paddingAngle={4}
+                >
+                  <Cell fill={COLORS.primary} />
+                  <Cell fill={COLORS.secondary} />
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "10px" }} />
+              </PieChart>
+            </ResponsiveContainer>
           );
         }
 
-      case 'line':
+      case "line":
         return (
-          <LineChart data={dataType === 'budget' ? data : comparisonData}>
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip content={<CustomTooltip tooltipType={dataType} />} />
-            <Legend />
-            <Line
-              type="monotone"
-              dataKey={dataType === 'budget' ? "amount" : labels[0]}
-              stroke={COLORS.primary}
-              strokeWidth={2}
-            />
-            <Line
-              type="monotone"
-              dataKey={dataType === 'budget' ? "totalSpend" : labels[1]}
-              stroke={COLORS.secondary}
-              strokeWidth={2}
-            />
-          </LineChart>
+          <ResponsiveContainer width="100%" height={340}>
+            <LineChart data={dataType === "budget" ? data : comparisonData}>
+              <XAxis dataKey="name" stroke="#888888" fontSize={11} />
+              <YAxis stroke="#888888" fontSize={11} />
+              <Tooltip content={<CustomTooltip tooltipType={dataType} />} />
+              <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "10px" }} />
+              <Line
+                type="monotone"
+                dataKey={dataType === "budget" ? "amount" : labels[0]}
+                stroke={COLORS.primary}
+                strokeWidth={2.5}
+                dot={{ r: 4 }}
+              />
+              <Line
+                type="monotone"
+                dataKey={dataType === "budget" ? "totalSpend" : labels[1]}
+                stroke={COLORS.secondary}
+                strokeWidth={2.5}
+                dot={{ r: 4 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
         );
 
       default: // bar
         return (
-          <BarChart data={dataType === 'budget' ? data : comparisonData}>
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip content={<CustomTooltip tooltipType={dataType} />} />
-            <Legend />
-            <Bar
-              dataKey={dataType === 'budget' ? "amount" : labels[0]}
-              fill={COLORS.primary}
-            />
-            <Bar
-              dataKey={dataType === 'budget' ? "totalSpend" : labels[1]}
-              fill={COLORS.secondary}
-            />
-          </BarChart>
+          <ResponsiveContainer width="100%" height={340}>
+            <BarChart data={dataType === "budget" ? data : comparisonData}>
+              <XAxis dataKey="name" stroke="#888888" fontSize={11} />
+              <YAxis stroke="#888888" fontSize={11} />
+              <Tooltip content={<CustomTooltip tooltipType={dataType} />} />
+              <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "10px" }} />
+              <Bar
+                dataKey={dataType === "budget" ? "amount" : labels[0]}
+                fill={COLORS.primary}
+                radius={[6, 6, 0, 0]}
+              />
+              <Bar
+                dataKey={dataType === "budget" ? "totalSpend" : labels[1]}
+                fill={COLORS.secondary}
+                radius={[6, 6, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
         );
     }
   };
 
-  const getContainerHeight = (chartType, dataType) => {
-    if (chartType === 'pie' && dataType === 'budget') {
-      return {
-        containerHeight: 'h-[800px] sm:h-[850px] md:h-[800px]', // Adjusted heights for different breakpoints
-        chartHeight: 720
-      };
-    }
-    return {
-      containerHeight: 'h-[500px]',
-      chartHeight: 420
-    };
-  };
-  
-  // In your return statement:
-  const { containerHeight, chartHeight } = getContainerHeight(type, dataType);
-  
   return (
-    <div className={`border rounded-2xl p-5 ${containerHeight}`}>
-      <h2 className="font-bold text-2xl mb-4 text-blue-600 text-center">
+    <div className="p-6 rounded-2xl bg-card border border-border/80 shadow-xs space-y-4">
+      <h3 className="text-base font-bold text-foreground text-center">
         {title}
-      </h2>
-      <ResponsiveContainer 
-        width="100%" 
-        height={chartHeight}
-      >
+      </h3>
+      <div className="w-full flex items-center justify-center">
         {renderChart()}
-      </ResponsiveContainer>
+      </div>
     </div>
   );
 };

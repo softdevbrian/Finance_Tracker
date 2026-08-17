@@ -1,21 +1,22 @@
 "use client";
+
 import React, { useEffect, useState, useContext } from "react";
 import { useUser } from "@clerk/nextjs";
 import { db } from "../../../../../utils/dbConfig";
 import { desc, eq, getTableColumns, sql, and, inArray } from "drizzle-orm";
-import { Budgets, Expenses, Incomes, PeriodSelected, Periods } from "../../../../../utils/schema";
+import { Budgets, Expenses, Incomes, Periods } from "../../../../../utils/schema";
 import EnhancedUniversalChart from "../_components/graphs/ChartContainer";
 import { useRouter } from "next/navigation";
 import { ChartWrapper } from "../_components/ChartExport";
 import { toast } from "sonner";
 import { TimeFrameContext } from "@/components/ui/TimeFrameProvider";
+import { BarChart3, TrendingUp, TrendingDown, PiggyBank, Target } from "lucide-react";
+import formatNumber from "../../../../../utils";
 
-
-function StatisticsPage() {
+export default function StatisticsPage() {
   const { user } = useUser();
   const router = useRouter();
   const { selectedTimeFrames } = useContext(TimeFrameContext);
-  const [periodNames, setPeriodNames] = useState({});
   const [userEmail, setUserEmail] = useState(null);
   const [selectedComparison, setSelectedComparison] = useState("income-spend");
   const [budgetList, setBudgetList] = useState([]);
@@ -27,44 +28,14 @@ function StatisticsPage() {
   const [selectedGraph, setSelectedGraph] = useState("bar");
   const [incomeList, setIncomeList] = useState([]);
 
-  // Fetch period names
-  useEffect(() => {
-    const fetchPeriodNames = async () => {
-      if (selectedTimeFrames && selectedTimeFrames.length > 0) {
-        const periodNamesResult = await db
-          .select({
-            id: Periods.id,
-            name: Periods.name
-          })
-          .from(Periods)
-          .where(inArray(Periods.id, selectedTimeFrames));
-
-        const namesMap = periodNamesResult.reduce((acc, period) => {
-          acc[period.id] = period.name;
-          return acc;
-        }, {});
-
-        setPeriodNames(namesMap);
-      }
-    };
-
-    if (user) {
-      fetchPeriodNames();
-    }
-  }, [user, selectedTimeFrames]);
-
-  // Initial data fetch
   useEffect(() => {
     if (user && selectedTimeFrames && selectedTimeFrames.length > 0) {
       setUserEmail(user.primaryEmailAddress?.emailAddress);
       getBudgetList();
       getIncomeList();
     } else if (user && (!selectedTimeFrames || selectedTimeFrames.length === 0)) {
-      // Route to timeframe setup if no period is selected
       router.replace("/dashboard/timeframe");
-      toast('Choose A TimeFrame First', {
-        duration: 10000,
-      });
+      toast("Choose A TimeFrame First", { duration: 6000 });
     }
   }, [user, selectedTimeFrames]);
 
@@ -74,11 +45,9 @@ function StatisticsPage() {
         .filter((income) => income.createdBy === userEmail)
         .reduce((sum, income) => sum + (parseFloat(income.amount) || 0), 0);
       setTotalIncome(userIncome);
-      console.log('Calculated total income:', userIncome); // Debug log
     }
   }, [incomeList, userEmail]);
 
-  // Income list fetching
   const getIncomeList = async () => {
     try {
       if (!user?.primaryEmailAddress?.emailAddress) return;
@@ -99,17 +68,11 @@ function StatisticsPage() {
         .groupBy(Incomes.id, Incomes.periodId);
 
       setIncomeList(result);
-
-      // Calculate total income
-      const userIncome = result
-        .reduce((sum, income) => sum + (parseFloat(income.amount) || 0), 0);
-      setTotalIncome(userIncome);
     } catch (error) {
       console.error("Error fetching income list:", error);
     }
   };
 
-  // Budget list fetching
   const getBudgetList = async () => {
     try {
       if (!user?.primaryEmailAddress?.emailAddress) return;
@@ -127,7 +90,8 @@ function StatisticsPage() {
           and(
             eq(Budgets.createdBy, user?.primaryEmailAddress?.emailAddress),
             inArray(Budgets.periodId, selectedTimeFrames)
-          ))
+          )
+        )
         .groupBy(Budgets.id, Budgets.periodId)
         .orderBy(desc(Budgets.id));
 
@@ -161,169 +125,178 @@ function StatisticsPage() {
     setActualSavings(actualSavings_);
   };
 
-  // Available comparisons configuration
   const comparisonOptions = [
     {
       value: "income-spend",
-      label: "Income vs Spend",
+      label: "Income vs. Total Spending",
       value1: totalIncome,
       value2: totalSpend,
-      labels: ["Income", "Spend"]
+      labels: ["Income Inflow", "Spending Outflow"],
     },
     {
       value: "savings",
-      label: "Expected vs Actual Savings",
+      label: "Projected vs. Actual Savings",
       value1: expectedSavings,
       value2: actualSavings,
-      labels: ["Expected Savings", "Actual Savings"]
+      labels: ["Projected Savings", "Actual Net Savings"],
     },
     {
       value: "income-savings",
-      label: "Income vs Actual Savings",
+      label: "Income vs. Actual Savings",
       value1: totalIncome,
       value2: actualSavings,
-      labels: ["Income", "Actual Savings"]
+      labels: ["Total Income", "Net Retained Savings"],
     },
     {
       value: "income-budget",
-      label: "Income vs Budget",
+      label: "Income vs. Target Budget",
       value1: totalIncome,
       value2: totalBudget,
-      labels: ["Income", "Budget"]
+      labels: ["Total Income", "Allocated Budget"],
     },
     {
       value: "budget-list",
-      label: "Budget vs Spend by Category",
-    }
+      label: "Category Breakdown: Target vs. Actual",
+    },
   ];
 
-  // Get current comparison configuration
-  const getCurrentComparison = () => {
-    return comparisonOptions.find(option => option.value === selectedComparison) || comparisonOptions[0];
-  };
+  const currentComparison =
+    comparisonOptions.find((opt) => opt.value === selectedComparison) ||
+    comparisonOptions[0];
+
+  const statCards = [
+    {
+      label: "Total Income",
+      value: `Ksh.${formatNumber(totalIncome)}`,
+      icon: TrendingUp,
+      color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
+    },
+    {
+      label: "Target Budget",
+      value: `Ksh.${formatNumber(totalBudget)}`,
+      icon: Target,
+      color: "text-blue-500 bg-blue-500/10 border-blue-500/20",
+    },
+    {
+      label: "Total Spent",
+      value: `Ksh.${formatNumber(totalSpend)}`,
+      icon: TrendingDown,
+      color: "text-rose-500 bg-rose-500/10 border-rose-500/20",
+    },
+    {
+      label: "Actual Savings",
+      value: `Ksh.${formatNumber(actualSavings)}`,
+      icon: PiggyBank,
+      color: "text-amber-500 bg-amber-500/10 border-amber-500/20",
+    },
+  ];
 
   return (
-    <div className="p-8 bg-background text-foreground">
-      <h1 className="text-3xl font-bold mb-4">User Statistics</h1>
-      
-      {/* Chart Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <div className="space-y-8">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/80">
         <div>
-          <label htmlFor="graphType" className="block text-foreground font-medium mb-2">
-            Select Chart Type:
-          </label>
-          <select
-            id="graphType"
-            value={selectedGraph}
-            onChange={(e) => setSelectedGraph(e.target.value)}
-            className="w-full border border-border bg-card text-card-foreground p-2 rounded shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
-          >
-            <option value="bar">Bar Chart</option>
-            <option value="line">Line Chart</option>
-            <option value="pie">Pie Chart</option>
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="comparison" className="block text-foreground font-medium mb-2">
-            Select Comparison:
-          </label>
-          <select
-            id="comparison"
-            value={selectedComparison}
-            onChange={(e) => setSelectedComparison(e.target.value)}
-            className="w-full border border-border bg-card text-card-foreground p-2 rounded shadow-sm focus:ring-2 focus:ring-primary focus:border-primary"
-          >
-            {comparisonOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
+            Analytics & Comparative Statistics
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Explore cash-flow ratios, category spreads, and long-term savings projections
+          </p>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {[
-          { 
-            label: "Total Income", 
-            value: totalIncome.toLocaleString(), 
-            color: "text-green-500",
-            className: "bg-green-50/20"
-          },
-          { 
-            label: "Total Spend", 
-            value: totalSpend.toLocaleString(), 
-            color: "text-destructive",
-            className: "bg-destructive/10"
-          },
-          { 
-            label: "Total Budget", 
-            value: totalBudget.toLocaleString(), 
-            color: "text-orange-500",
-            className: "bg-orange-50/20"
-          },
-          { 
-            label: "Expected Savings", 
-            value: expectedSavings.toLocaleString(), 
-            color: "text-blue-500",
-            className: "bg-blue-50/20"
-          },
-          { 
-            label: "Actual Savings", 
-            value: actualSavings.toLocaleString(), 
-            color: "text-purple-500",
-            className: "bg-purple-50/20"
-          }
-        ].map((card, index) => (
-          <div 
-            key={card.label} 
-            className={`p-4 rounded-lg shadow-sm border border-border ${card.className}`}
-          >
-            <h3 className="text-sm font-medium text-muted-foreground">{card.label}</h3>
-            <p className={`text-lg font-semibold ${card.color}`}>
-              Ksh.{card.value}
-            </p>
+      {/* KPI Stats Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map((stat, index) => {
+          const Icon = stat.icon;
+          return (
+            <div
+              key={index}
+              className="p-5 rounded-2xl bg-card border border-border/80 shadow-xs flex items-center justify-between gap-3"
+            >
+              <div>
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
+                  {stat.label}
+                </span>
+                <span className="text-lg md:text-xl font-bold text-foreground">
+                  {stat.value}
+                </span>
+              </div>
+              <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${stat.color}`}>
+                <Icon className="w-5 h-5" />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Controls Card */}
+      <div className="p-6 rounded-2xl bg-card border border-border/80 shadow-xs space-y-4">
+        <div className="flex items-center gap-2 pb-2 border-b border-border/60">
+          <BarChart3 className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
+            Chart Configuration
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label
+              htmlFor="graphType"
+              className="text-xs font-semibold text-foreground uppercase tracking-wider block mb-1.5"
+            >
+              Visualization Style
+            </label>
+            <select
+              id="graphType"
+              value={selectedGraph}
+              onChange={(e) => setSelectedGraph(e.target.value)}
+              className="w-full p-2.5 rounded-xl border border-border bg-background text-foreground text-sm font-medium focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+            >
+              <option value="bar">Bar Chart</option>
+              <option value="line">Line Chart</option>
+              <option value="pie">Pie Chart</option>
+            </select>
           </div>
-        ))}
+
+          <div>
+            <label
+              htmlFor="comparison"
+              className="text-xs font-semibold text-foreground uppercase tracking-wider block mb-1.5"
+            >
+              Comparison Metric
+            </label>
+            <select
+              id="comparison"
+              value={selectedComparison}
+              onChange={(e) => setSelectedComparison(e.target.value)}
+              className="w-full p-2.5 rounded-xl border border-border bg-background text-foreground text-sm font-medium focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+            >
+              {comparisonOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
-      {/* Chart Display */}
-      <div className="bg-card rounded-lg shadow-md border border-border p-6">
-        {selectedComparison === 'budget-list' ? (
-          <ChartWrapper 
-            title="Budget vs Spend by Category"
-            exportable={true}
-          >
-            <EnhancedUniversalChart
-              type={selectedGraph}
-              data={budgetList}
-              dataType="budget"
-              title="Budget vs Spend by Category"
-            />
-          </ChartWrapper>
-        ) : (
-          <ChartWrapper 
-            title={getCurrentComparison().label}
-            exportable={true}
-          >
-            <EnhancedUniversalChart
-              type={selectedGraph}
-              dataType="comparison"
-              value1={getCurrentComparison().value1}
-              value2={getCurrentComparison().value2}
-              labels={getCurrentComparison().labels}
-              title={getCurrentComparison().label}
-            />
-          </ChartWrapper>
-        )}
-      </div>
+      {/* Chart Render Canvas */}
+      <ChartWrapper
+        title={`Analytics_${selectedComparison}_${selectedGraph}`}
+        exportable={true}
+      >
+        <EnhancedUniversalChart
+          type={selectedGraph}
+          dataType={selectedComparison === "budget-list" ? "budget" : "comparison"}
+          data={budgetList}
+          value1={currentComparison.value1}
+          value2={currentComparison.value2}
+          labels={currentComparison.labels}
+          title={currentComparison.label}
+        />
+      </ChartWrapper>
     </div>
   );
 }
-
-export default StatisticsPage;
-
-
-              
