@@ -1,58 +1,105 @@
 "use client";
 
-import React, { useEffect, useState, useContext } from "react";
+import React, { useEffect, useState, useContext, useRef, useMemo } from "react";
 import { useUser } from "@clerk/nextjs";
 import { db } from "../../../../../utils/dbConfig";
 import { desc, eq, getTableColumns, sql, and, inArray } from "drizzle-orm";
 import { Budgets, Expenses, Incomes, Periods } from "../../../../../utils/schema";
-import EnhancedUniversalChart from "../_components/graphs/ChartContainer";
 import { useRouter } from "next/navigation";
-import { ChartWrapper } from "../_components/ChartExport";
 import { toast } from "sonner";
 import { TimeFrameContext } from "@/components/ui/TimeFrameProvider";
-import { BarChart3, TrendingUp, TrendingDown, PiggyBank, Target } from "lucide-react";
+import {
+  TrendingUp,
+  TrendingDown,
+  PiggyBank,
+  Target,
+  FileDown,
+  Layers,
+  PieChart as PieIcon,
+  Activity,
+  Table as TableIcon,
+  ShieldCheck,
+} from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 import formatNumber from "../../../../../utils";
+import { generateThemedExecutivePDF } from "../_components/ChartExport";
+
+const PALETTE = [
+  "#10B981", // Emerald
+  "#3B82F6", // Blue
+  "#8B5CF6", // Purple
+  "#F59E0B", // Amber
+  "#EF4444", // Red
+  "#EC4899", // Pink
+  "#06B6D4", // Cyan
+  "#64748B", // Slate
+];
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="p-3 bg-neutral-950/95 backdrop-blur-md border border-neutral-800 rounded-xl shadow-2xl space-y-1 text-xs">
+        <p className="font-semibold text-neutral-400 mb-1">{label || payload[0]?.payload?.name}</p>
+        {payload.map((entry, index) => (
+          <div key={index} className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
+              <span className="capitalize text-neutral-300 font-medium">{entry.name}:</span>
+            </div>
+            <span className="font-bold text-white">
+              KSh {formatNumber(entry.value || 0)}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
 export default function StatisticsPage() {
   const { user } = useUser();
   const router = useRouter();
   const { selectedTimeFrames } = useContext(TimeFrameContext);
-  const [userEmail, setUserEmail] = useState(null);
-  const [selectedComparison, setSelectedComparison] = useState("income-spend");
+  const chartCaptureRef = useRef(null);
+
   const [budgetList, setBudgetList] = useState([]);
+  const [incomeList, setIncomeList] = useState([]);
   const [totalSpend, setTotalSpend] = useState(0);
   const [totalIncome, setTotalIncome] = useState(0);
   const [totalBudget, setTotalBudget] = useState(0);
-  const [expectedSavings, setExpectedSavings] = useState(0);
-  const [actualSavings, setActualSavings] = useState(0);
-  const [selectedGraph, setSelectedGraph] = useState("bar");
-  const [incomeList, setIncomeList] = useState([]);
+  const [activePeriodName, setActivePeriodName] = useState("Active Window");
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     if (user && selectedTimeFrames && selectedTimeFrames.length > 0) {
-      setUserEmail(user.primaryEmailAddress?.emailAddress);
-      getBudgetList();
-      getIncomeList();
+      fetchAnalyticsData();
     } else if (user && (!selectedTimeFrames || selectedTimeFrames.length === 0)) {
       router.replace("/dashboard/timeframe");
       toast("Choose A TimeFrame First", { duration: 6000 });
     }
   }, [user, selectedTimeFrames]);
 
-  useEffect(() => {
-    if (incomeList.length > 0 && userEmail) {
-      const userIncome = incomeList
-        .filter((income) => income.createdBy === userEmail)
-        .reduce((sum, income) => sum + (parseFloat(income.amount) || 0), 0);
-      setTotalIncome(userIncome);
-    }
-  }, [incomeList, userEmail]);
-
-  const getIncomeList = async () => {
+  const fetchAnalyticsData = async () => {
     try {
       if (!user?.primaryEmailAddress?.emailAddress) return;
+      const userEmail = user.primaryEmailAddress.emailAddress;
 
-      const result = await db
+      // 1. Fetch Income
+      const incomeRes = await db
         .select({
           ...getTableColumns(Incomes),
           periodId: Incomes.periodId,
@@ -61,23 +108,18 @@ export default function StatisticsPage() {
         .from(Incomes)
         .where(
           and(
-            eq(Incomes.createdBy, user.primaryEmailAddress.emailAddress),
+            eq(Incomes.createdBy, userEmail),
             inArray(Incomes.periodId, selectedTimeFrames)
           )
         )
         .groupBy(Incomes.id, Incomes.periodId);
 
-      setIncomeList(result);
-    } catch (error) {
-      console.error("Error fetching income list:", error);
-    }
-  };
+      setIncomeList(incomeRes);
+      const incTotal = incomeRes.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+      setTotalIncome(incTotal);
 
-  const getBudgetList = async () => {
-    try {
-      if (!user?.primaryEmailAddress?.emailAddress) return;
-
-      const result = await db
+      // 2. Fetch Budgets
+      const budgetRes = await db
         .select({
           ...getTableColumns(Budgets),
           periodId: Budgets.periodId,
@@ -88,215 +130,492 @@ export default function StatisticsPage() {
         .leftJoin(Expenses, eq(Budgets.id, Expenses.budgetId))
         .where(
           and(
-            eq(Budgets.createdBy, user?.primaryEmailAddress?.emailAddress),
+            eq(Budgets.createdBy, userEmail),
             inArray(Budgets.periodId, selectedTimeFrames)
           )
         )
         .groupBy(Budgets.id, Budgets.periodId)
         .orderBy(desc(Budgets.id));
 
-      setBudgetList(result);
+      setBudgetList(budgetRes);
+
+      const bTotal = budgetRes.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+      const spTotal = budgetRes.reduce((sum, item) => sum + (parseFloat(item.totalSpend) || 0), 0);
+      setTotalBudget(bTotal);
+      setTotalSpend(spTotal);
+
+      // 3. Fetch Period Name
+      const periodRes = await db
+        .select({ name: Periods.name })
+        .from(Periods)
+        .where(inArray(Periods.id, selectedTimeFrames))
+        .limit(1);
+
+      if (periodRes && periodRes[0]) {
+        setActivePeriodName(periodRes[0].name);
+      }
     } catch (error) {
-      console.error("Error fetching budget list:", error);
+      console.error("Error fetching analytics data:", error);
     }
   };
 
-  useEffect(() => {
-    if (totalIncome > 0 || budgetList.length > 0) {
-      calculateCardInfo(totalIncome);
+  const actualSavings = totalIncome - totalSpend;
+  const savingsRate = totalIncome > 0 ? ((actualSavings / totalIncome) * 100).toFixed(1) : 0;
+  const budgetUtilization = totalBudget > 0 ? ((totalSpend / totalBudget) * 100).toFixed(1) : 0;
+
+  // Chart Data preparation
+  const categoryBarData = useMemo(() => {
+    return budgetList.map((b) => ({
+      name: b.name,
+      Budget: Number(b.amount || 0),
+      Spend: Number(b.totalSpend || 0),
+    }));
+  }, [budgetList]);
+
+  const categoryDonutData = useMemo(() => {
+    const total = budgetList.reduce((sum, b) => sum + parseFloat(b.totalSpend || 0), 0);
+    if (total > 0) {
+      return budgetList
+        .filter((b) => Number(b.totalSpend || 0) > 0)
+        .map((b, idx) => ({
+          name: b.name,
+          value: Number(b.totalSpend || 0),
+          perc: Math.round((Number(b.totalSpend || 0) / total) * 100),
+          color: PALETTE[idx % PALETTE.length],
+        }));
     }
-  }, [totalIncome, budgetList]);
+    const bTotal = budgetList.reduce((sum, b) => sum + parseFloat(b.amount || 0), 0);
+    return budgetList.map((b, idx) => ({
+      name: b.name,
+      value: Number(b.amount || 0),
+      perc: bTotal > 0 ? Math.round((Number(b.amount || 0) / bTotal) * 100) : 0,
+      color: PALETTE[idx % PALETTE.length],
+    }));
+  }, [budgetList]);
 
-  const calculateCardInfo = (income) => {
-    let totalBudget_ = 0;
-    let totalSpend_ = 0;
-
-    budgetList.forEach((element) => {
-      totalBudget_ += parseFloat(element.amount || 0);
-      totalSpend_ += element.totalSpend || 0;
+  const trendAreaData = useMemo(() => {
+    if (budgetList.length === 0) return [];
+    return budgetList.map((b, idx) => {
+      const avgIncPerCat = totalIncome > 0 ? Math.round(totalIncome / budgetList.length) : 0;
+      return {
+        name: b.name,
+        IncomeInflow: avgIncPerCat,
+        BudgetLimit: Number(b.amount || 0),
+        SpendOutflow: Number(b.totalSpend || 0),
+      };
     });
+  }, [budgetList, totalIncome]);
 
-    const expectedSavings_ = income - totalBudget_;
-    const actualSavings_ = income - totalSpend_;
-
-    setTotalBudget(totalBudget_);
-    setTotalSpend(totalSpend_);
-    setExpectedSavings(expectedSavings_);
-    setActualSavings(actualSavings_);
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      await generateThemedExecutivePDF({
+        budgetList,
+        totalIncome,
+        totalBudget,
+        totalSpend,
+        actualSavings,
+        periodName: activePeriodName,
+        userEmail: user?.primaryEmailAddress?.emailAddress || "User",
+        chartRef: chartCaptureRef,
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsExporting(false);
+    }
   };
-
-  const comparisonOptions = [
-    {
-      value: "income-spend",
-      label: "Income vs. Total Spending",
-      value1: totalIncome,
-      value2: totalSpend,
-      labels: ["Income Inflow", "Spending Outflow"],
-    },
-    {
-      value: "savings",
-      label: "Projected vs. Actual Savings",
-      value1: expectedSavings,
-      value2: actualSavings,
-      labels: ["Projected Savings", "Actual Net Savings"],
-    },
-    {
-      value: "income-savings",
-      label: "Income vs. Actual Savings",
-      value1: totalIncome,
-      value2: actualSavings,
-      labels: ["Total Income", "Net Retained Savings"],
-    },
-    {
-      value: "income-budget",
-      label: "Income vs. Target Budget",
-      value1: totalIncome,
-      value2: totalBudget,
-      labels: ["Total Income", "Allocated Budget"],
-    },
-    {
-      value: "budget-list",
-      label: "Category Breakdown: Target vs. Actual",
-    },
-  ];
-
-  const currentComparison =
-    comparisonOptions.find((opt) => opt.value === selectedComparison) ||
-    comparisonOptions[0];
 
   const statCards = [
     {
       label: "Total Income",
-      value: `Ksh.${formatNumber(totalIncome)}`,
+      value: `KSh ${formatNumber(totalIncome)}`,
+      badge: "Total Inflows",
       icon: TrendingUp,
       color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
     },
     {
       label: "Target Budget",
-      value: `Ksh.${formatNumber(totalBudget)}`,
+      value: `KSh ${formatNumber(totalBudget)}`,
+      badge: `${budgetUtilization}% Allocated`,
       icon: Target,
       color: "text-blue-500 bg-blue-500/10 border-blue-500/20",
     },
     {
-      label: "Total Spent",
-      value: `Ksh.${formatNumber(totalSpend)}`,
+      label: "Total Expenditures",
+      value: `KSh ${formatNumber(totalSpend)}`,
+      badge: totalSpend > totalBudget && totalBudget > 0 ? "Over Budget" : "Spend Outflow",
       icon: TrendingDown,
-      color: "text-rose-500 bg-rose-500/10 border-rose-500/20",
+      color: totalSpend > totalBudget && totalBudget > 0
+        ? "text-rose-500 bg-rose-500/10 border-rose-500/30"
+        : "text-amber-500 bg-amber-500/10 border-amber-500/20",
     },
     {
-      label: "Actual Savings",
-      value: `Ksh.${formatNumber(actualSavings)}`,
+      label: "Net Savings",
+      value: `KSh ${formatNumber(actualSavings)}`,
+      badge: `${savingsRate}% Savings Rate`,
       icon: PiggyBank,
-      color: "text-amber-500 bg-amber-500/10 border-amber-500/20",
+      color: actualSavings >= 0
+        ? "text-emerald-500 bg-emerald-500/10 border-emerald-500/20"
+        : "text-rose-500 bg-rose-500/10 border-rose-500/20",
     },
   ];
 
   return (
-    <div className="space-y-8">
-      {/* Top Header */}
+    <div className="space-y-6 max-w-[1550px] mx-auto pb-8">
+      {/* Top Header with PDF Export Action */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/80">
         <div>
           <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
-            Analytics & Comparative Statistics
+            Executive Analytics & Reports
           </h2>
           <p className="text-sm text-muted-foreground">
-            Explore cash-flow ratios, category spreads, and long-term savings projections
+            Financial health diagnostics, category limits, and spending distribution for <span className="font-semibold text-foreground">{activePeriodName}</span>
           </p>
         </div>
+
+        <button
+          onClick={handleExportPDF}
+          disabled={isExporting}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-xs transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-50 shrink-0"
+        >
+          <FileDown className="w-4 h-4" />
+          <span>{isExporting ? "Generating PDF..." : "Export Executive Report PDF"}</span>
+        </button>
       </div>
 
       {/* KPI Stats Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {statCards.map((stat, index) => {
           const Icon = stat.icon;
           return (
             <div
               key={index}
-              className="p-5 rounded-2xl bg-card border border-border/80 shadow-xs flex items-center justify-between gap-3"
+              className="p-5 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between"
             >
-              <div>
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   {stat.label}
                 </span>
-                <span className="text-lg md:text-xl font-bold text-foreground">
-                  {stat.value}
-                </span>
+                <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${stat.color}`}>
+                  <Icon className="w-5 h-5" />
+                </div>
               </div>
-              <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${stat.color}`}>
-                <Icon className="w-5 h-5" />
+
+              <div className="mt-2">
+                <h3 className="text-2xl font-black text-foreground">
+                  {stat.value}
+                </h3>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between text-xs">
+                <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium text-[11px]">
+                  {stat.badge}
+                </span>
+                <span className="text-[11px] text-muted-foreground">Active Period</span>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Controls Card */}
-      <div className="p-6 rounded-2xl bg-card border border-border/80 shadow-xs space-y-4">
-        <div className="flex items-center gap-2 pb-2 border-b border-border/60">
-          <BarChart3 className="w-4 h-4 text-primary" />
-          <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
-            Chart Configuration
-          </h3>
-        </div>
+      {/* Chart Capture Area for PDF screenshot embedding */}
+      <div ref={chartCaptureRef} className="space-y-6">
+        {/* Tier 2: 2-Column Analytics Deck */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left 60%: Spend vs Budget Bar Chart */}
+          <div className="lg:col-span-7 xl:col-span-8 p-6 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center justify-between pb-3 border-b border-border/60">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">Category Budget vs. Outflow</h3>
+                  <p className="text-xs text-muted-foreground">Target limits compared against actual expenditure</p>
+                </div>
+              </div>
+            </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label
-              htmlFor="graphType"
-              className="text-xs font-semibold text-foreground uppercase tracking-wider block mb-1.5"
-            >
-              Visualization Style
-            </label>
-            <select
-              id="graphType"
-              value={selectedGraph}
-              onChange={(e) => setSelectedGraph(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-border bg-background text-foreground text-sm font-medium focus:ring-2 focus:ring-primary focus:outline-none transition-all"
-            >
-              <option value="bar">Bar Chart</option>
-              <option value="line">Line Chart</option>
-              <option value="pie">Pie Chart</option>
-            </select>
+            {categoryBarData.length > 0 ? (
+              <div className="w-full h-[280px] pt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={categoryBarData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                    <XAxis
+                      dataKey="name"
+                      stroke="#888888"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      stroke="#888888"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                    <Bar
+                      dataKey="Budget"
+                      name="Budget Target"
+                      fill="#10B981"
+                      radius={[5, 5, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="Spend"
+                      name="Actual Outflow"
+                      fill="#3B82F6"
+                      radius={[5, 5, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-[280px] flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border/60 rounded-xl my-4">
+                No budget categories in this timeframe yet.
+              </div>
+            )}
           </div>
 
-          <div>
-            <label
-              htmlFor="comparison"
-              className="text-xs font-semibold text-foreground uppercase tracking-wider block mb-1.5"
-            >
-              Comparison Metric
-            </label>
-            <select
-              id="comparison"
-              value={selectedComparison}
-              onChange={(e) => setSelectedComparison(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-border bg-background text-foreground text-sm font-medium focus:ring-2 focus:ring-primary focus:outline-none transition-all"
-            >
-              {comparisonOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+          {/* Right 40%: Spending Distribution Donut Chart */}
+          <div className="lg:col-span-5 xl:col-span-4 p-6 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center justify-between pb-3 border-b border-border/60">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500">
+                  <PieIcon className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">Spending Distribution</h3>
+                  <p className="text-xs text-muted-foreground">Category percentage of total outflow</p>
+                </div>
+              </div>
+            </div>
+
+            {categoryDonutData.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center flex-1 pt-2">
+                <div className="sm:col-span-6 relative w-full h-[200px] flex items-center justify-center">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categoryDonutData}
+                        dataKey="value"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                        paddingAngle={3}
+                        stroke="none"
+                      >
+                        {categoryDonutData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CustomTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+                      Total
+                    </span>
+                    <span className="text-xs sm:text-sm font-black text-foreground">
+                      KSh {formatNumber(totalSpend > 0 ? totalSpend : totalBudget)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="sm:col-span-6 space-y-2 overflow-y-auto max-h-[220px] pr-1">
+                  {categoryDonutData.slice(0, 6).map((item, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between text-xs py-1 border-b border-border/40 last:border-0"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: item.color }} />
+                        <span className="font-semibold text-foreground truncate max-w-[90px]">
+                          {item.name}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[11px] text-muted-foreground font-bold">{item.perc}%</span>
+                        <span className="text-[11px] font-bold text-foreground">KSh {formatNumber(item.value)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-xs text-muted-foreground border border-dashed border-border/60 rounded-xl my-4">
+                No categories found.
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Tier 3: Full-Width Comparison Line/Area Chart */}
+        {trendAreaData.length > 0 && (
+          <div className="p-6 rounded-2xl bg-card border border-border/80 shadow-xs space-y-3">
+            <div className="flex items-center justify-between pb-3 border-b border-border/60">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                  <Activity className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">Cash-Flow Distribution Trajectory</h3>
+                  <p className="text-xs text-muted-foreground">Comparative cross-category curve of budget limit versus actual spend</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full h-[260px] pt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendAreaData} margin={{ top: 10, right: 15, left: -15, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="budgetArea" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="spendArea" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="name"
+                    stroke="#888888"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="#888888"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
+                  <Area
+                    type="monotone"
+                    dataKey="BudgetLimit"
+                    name="Target Limit"
+                    stroke="#10B981"
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill="url(#budgetArea)"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="SpendOutflow"
+                    name="Actual Outflow"
+                    stroke="#3B82F6"
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill="url(#spendArea)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Chart Render Canvas */}
-      <ChartWrapper
-        title={`Analytics_${selectedComparison}_${selectedGraph}`}
-        exportable={true}
-      >
-        <EnhancedUniversalChart
-          type={selectedGraph}
-          dataType={selectedComparison === "budget-list" ? "budget" : "comparison"}
-          data={budgetList}
-          value1={currentComparison.value1}
-          value2={currentComparison.value2}
-          labels={currentComparison.labels}
-          title={currentComparison.label}
-        />
-      </ChartWrapper>
+      {/* Tier 4: Budget Category Breakdown Data Table */}
+      <div className="p-6 rounded-2xl bg-card border border-border/80 shadow-xs space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-border/60">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+              <TableIcon className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-foreground">Detailed Budget Allocation Table</h3>
+              <p className="text-xs text-muted-foreground">{budgetList.length} categories active</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-border/60 text-xs text-muted-foreground uppercase">
+                <th className="py-3 px-3 font-semibold">Category</th>
+                <th className="py-3 px-3 font-semibold text-right">Target Limit</th>
+                <th className="py-3 px-3 font-semibold text-right">Actual Spend</th>
+                <th className="py-3 px-3 font-semibold text-right">Remaining</th>
+                <th className="py-3 px-3 font-semibold text-center">Utilization</th>
+                <th className="py-3 px-3 font-semibold text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {budgetList.length > 0 ? (
+                budgetList.map((b) => {
+                  const budget = Number(b.amount || 0);
+                  const spent = Number(b.totalSpend || 0);
+                  const remaining = budget - spent;
+                  const usage = budget > 0 ? Math.round((spent / budget) * 100) : 0;
+                  const isOver = spent > budget;
+                  const isWarning = usage >= 80 && !isOver;
+
+                  return (
+                    <tr key={b.id} className="hover:bg-muted/40 transition-colors text-xs sm:text-sm">
+                      <td className="py-3.5 px-3 font-bold text-foreground flex items-center gap-2">
+                        <span>{b.icon || "🏷️"}</span>
+                        <span>{b.name}</span>
+                      </td>
+                      <td className="py-3.5 px-3 text-right font-medium text-foreground">
+                        KSh {formatNumber(budget)}
+                      </td>
+                      <td className="py-3.5 px-3 text-right font-bold text-foreground">
+                        KSh {formatNumber(spent)}
+                      </td>
+                      <td className={`py-3.5 px-3 text-right font-semibold ${remaining >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                        KSh {formatNumber(remaining)}
+                      </td>
+                      <td className="py-3.5 px-3">
+                        <div className="w-28 mx-auto space-y-1">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground">
+                            <span>{usage}%</span>
+                          </div>
+                          <div className="w-full h-1.5 rounded-full bg-muted/80 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${
+                                isOver ? "bg-rose-500" : isWarning ? "bg-amber-500" : "bg-emerald-500"
+                              }`}
+                              style={{ width: `${Math.min(100, usage)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-3 text-right">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                            isOver
+                              ? "bg-rose-500/10 text-rose-500 border border-rose-500/20"
+                              : isWarning
+                              ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                              : "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                          }`}
+                        >
+                          {isOver ? "Over Budget" : isWarning ? "Caution" : "On Track"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-xs text-muted-foreground">
+                    No budget categories found for the active timeframe.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

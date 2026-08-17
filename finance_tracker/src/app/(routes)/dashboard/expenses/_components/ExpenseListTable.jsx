@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import formatNumber from "../../../../../../utils";
+import { THEME_PDF_PALETTES } from "../../_components/ChartExport";
 
 export default function ExpenseListTable({ budget, expensesList = [], refreshData }) {
   const budgetName = budget?.name || (Array.isArray(budget) ? "Recent" : "Combined");
@@ -47,45 +48,106 @@ export default function ExpenseListTable({ budget, expensesList = [], refreshDat
 
   const exportToPDF = () => {
     try {
-      const doc = new jsPDF();
+      const activeThemeKey = (typeof window !== "undefined" && localStorage.getItem("ft_user_theme")) || "emerald";
+      const palette = THEME_PDF_PALETTES[activeThemeKey] || THEME_PDF_PALETTES.emerald;
 
-      doc.setFontSize(18);
-      doc.text(`${budgetName} Expense Report`, 14, 22);
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
 
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 28);
+      const pageWidth = doc.internal.pageSize.getWidth();
 
-      const tableRows = sortedExpenses.map((expense) => [
+      // Top Themed Banner
+      doc.setFillColor(...palette.primary);
+      doc.rect(0, 0, pageWidth, 16, "F");
+
+      doc.setFillColor(...palette.darkHeader);
+      doc.rect(0, 16, pageWidth, 2, "F");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(255, 255, 255);
+      doc.text("FINANCE TRACKER", 14, 11);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.text("EXPENSE AUDIT LOG", pageWidth - 14, 11, { align: "right" });
+
+      // Header Info
+      doc.setTextColor(30, 41, 59);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(15);
+      doc.text(`${budgetName} Expenditures`, 14, 28);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Total Transactions: ${sortedExpenses.length}`, 14, 34);
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth - 14, 34, { align: "right" });
+
+      const tableRows = sortedExpenses.map((expense, idx) => [
+        `#${idx + 1}`,
         expense.name,
-        `Ksh. ${parseFloat(expense.amount || 0).toLocaleString()}`,
-        expense.createdAt,
+        `KSh ${formatNumber(expense.amount || 0)}`,
+        expense.createdAt || "N/A",
       ]);
 
+      const total = sortedExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+
       doc.autoTable({
-        startY: 36,
-        head: [["Expense Description", "Amount", "Date Logged"]],
+        startY: 40,
+        head: [["Item", "Expense Description", "Amount", "Date Recorded"]],
         body: tableRows,
         theme: "striped",
         headStyles: {
-          fillColor: [30, 41, 59],
+          fillColor: palette.darkHeader,
           textColor: 255,
           fontStyle: "bold",
+          fontSize: 9,
         },
-        styles: {
-          fontSize: 10,
-          cellPadding: 4,
+        bodyStyles: {
+          fontSize: 9,
+          cellPadding: 3.5,
+        },
+        columnStyles: {
+          0: { halign: "center", width: 14 },
+          1: { fontStyle: "bold" },
+          2: { halign: "right", fontStyle: "bold" },
+          3: { halign: "center" },
         },
       });
 
-      const total = sortedExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
-      const finalY = doc.previousAutoTable.finalY || 36;
-      doc.setFontSize(11);
-      doc.setTextColor(0);
-      doc.text(`Total Expenditures: Ksh. ${total.toLocaleString()}`, 14, finalY + 10);
+      const finalY = doc.previousAutoTable.finalY || 40;
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(14, finalY + 6, pageWidth - 28, 12, 2, 2, "FD");
 
-      doc.save(`${budgetName}_Expenses_Report.pdf`);
-      toast.success("PDF exported successfully");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(30, 41, 59);
+      doc.text("Total Outflow Sum:", 18, finalY + 14);
+
+      doc.setTextColor(...palette.primary);
+      doc.text(`KSh ${formatNumber(total)}`, pageWidth - 18, finalY + 14, { align: "right" });
+
+      // Footer
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(140, 140, 140);
+        doc.text(
+          `Finance Tracker  •  Confidential  •  Page ${i} of ${pageCount}`,
+          pageWidth / 2,
+          doc.internal.pageSize.getHeight() - 8,
+          { align: "center" }
+        );
+      }
+
+      doc.save(`${budgetName}_Expenses_${new Date().toISOString().split("T")[0]}.pdf`);
+      toast.success("Expense PDF exported successfully");
     } catch (error) {
       console.error("Error exporting PDF:", error);
       toast.error("Failed to export PDF");
@@ -111,72 +173,72 @@ export default function ExpenseListTable({ budget, expensesList = [], refreshDat
           </div>
         </div>
 
-        {sortedExpenses.length > 0 && (
-          <button
-            onClick={exportToPDF}
-            className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-muted hover:bg-accent text-foreground text-xs font-semibold border border-border transition-all hover:scale-105 active:scale-95 shadow-xs"
-          >
-            <FileDown className="w-4 h-4 text-primary" />
-            <span>Export PDF</span>
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          <div className="text-right hidden sm:block">
+            <span className="text-xs text-muted-foreground">Total Spent:</span>
+            <p className="text-sm font-bold text-foreground">KSh {formatNumber(totalSpent)}</p>
+          </div>
+          {sortedExpenses.length > 0 && (
+            <button
+              onClick={exportToPDF}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card hover:bg-accent text-foreground text-xs font-semibold border border-border/80 transition-all duration-200 hover:scale-105 active:scale-95 shadow-xs"
+              title="Export to PDF"
+            >
+              <FileDown className="w-3.5 h-3.5 text-primary" />
+              <span>Export PDF</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Table Rows */}
-      {sortedExpenses.length > 0 ? (
-        <div className="overflow-x-auto">
-          <div className="min-w-[480px]">
-            <div className="grid grid-cols-12 gap-2 px-4 py-2.5 rounded-xl bg-muted/60 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              <span className="col-span-5">Description</span>
-              <span className="col-span-3 text-right">Amount</span>
-              <span className="col-span-3 text-center">Date</span>
-              <span className="col-span-1 text-center">Action</span>
-            </div>
-
-            <div className="divide-y divide-border/60">
-              {sortedExpenses.map((expense) => (
-                <div
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-border/60 text-xs text-muted-foreground uppercase">
+              <th className="py-3 px-3 font-semibold">Name</th>
+              <th className="py-3 px-3 font-semibold">Amount</th>
+              <th className="py-3 px-3 font-semibold">Date</th>
+              <th className="py-3 px-3 font-semibold text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/40">
+            {sortedExpenses.length > 0 ? (
+              sortedExpenses.map((expense) => (
+                <tr
                   key={expense.id}
-                  className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm hover:bg-muted/30 transition-colors"
+                  className="hover:bg-muted/40 transition-colors group text-xs sm:text-sm"
                 >
-                  <span className="col-span-5 font-medium text-foreground truncate">
+                  <td className="py-3 px-3 font-medium text-foreground">
                     {expense.name}
-                  </span>
-                  <span className="col-span-3 text-right font-semibold text-rose-500">
-                    Ksh.{formatNumber(expense.amount)}
-                  </span>
-                  <span className="col-span-3 text-center text-xs text-muted-foreground">
+                  </td>
+                  <td className="py-3 px-3 font-semibold text-rose-500">
+                    KSh {formatNumber(expense.amount)}
+                  </td>
+                  <td className="py-3 px-3 text-muted-foreground text-xs">
                     {expense.createdAt}
-                  </span>
-                  <div className="col-span-1 flex justify-center">
+                  </td>
+                  <td className="py-3 px-3 text-right">
                     <button
                       onClick={() => deleteExpense(expense)}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors opacity-80 group-hover:opacity-100"
                       title="Delete expense"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Total Bar */}
-          <div className="mt-4 pt-3 border-t border-border/80 flex items-center justify-between px-2">
-            <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
-              Total Logged Spend
-            </span>
-            <span className="text-base font-extrabold text-rose-500">
-              Ksh.{formatNumber(totalSpent)}
-            </span>
-          </div>
-        </div>
-      ) : (
-        <div className="p-8 text-center rounded-xl bg-muted/20 border border-dashed border-border/60 text-xs text-muted-foreground">
-          No expenses logged yet.
-        </div>
-      )}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={4} className="py-8 text-center text-xs text-muted-foreground">
+                  No expenses found for this selection.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
