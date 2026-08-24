@@ -4,10 +4,10 @@ import React, { useEffect, useState } from "react";
 import { Wallet, ShieldCheck, BarChart3, Sparkles } from "lucide-react";
 
 const images = [
-  "https://media.istockphoto.com/id/1257717196/photo/kenyan-coins-on-the-background-of-money.jpg?s=2048x2048&w=is&k=20&c=hOcyTvMGzdBFUEHsvE2n_LPTzXsho9OpZafxmlqNOu0=",
-  "https://media.istockphoto.com/id/1158052678/photo/five-hundred-kenyan-shilling-on-a-pile-of-various-kenyan-shilling-notes-top-view.jpg?s=2048x2048&w=is&k=20&c=4cC6BrfeRzqI4clQRgx6zzJyOyH1HK39Ucpq_NSHuaY=",
-  "https://media.istockphoto.com/id/1161898919/photo/kenyan-shilling-a-background.jpg?s=2048x2048&w=is&k=20&c=j0xODJFgDvkqCip_gM97QaKhO8X_jaZqj6-1VUT23NA=",
-  "https://media.istockphoto.com/id/1152454581/photo/business-object.jpg?s=2048x2048&w=is&k=20&c=o-xRY_50vzWlH6JWZ93DOAnKyxus9l4vyGTEB46fZtE=",
+  "/currency-1.png",
+  "/currency-2.png",
+  "/currency-3.png",
+  "/currency-4.png",
 ];
 
 export default function ImageCarousel() {
